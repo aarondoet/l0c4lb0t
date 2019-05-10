@@ -1,10 +1,12 @@
 package Main;
 
+import DataManager.*;
 import discord4j.core.object.entity.Guild;
 import discord4j.core.object.entity.Member;
 import discord4j.core.object.util.Permission;
 import reactor.core.publisher.Mono;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -23,22 +25,56 @@ public class PermissionManager {
         public int getType() {
             return type;
         }
+        public static PermissionType fromInt(int type){
+            for(PermissionType pt : PermissionType.values())
+                if(pt.getType() == type)
+                    return pt;
+            return null;
+        }
     }
 
     public static boolean hasPermission(Guild g, Member m, String cmd, boolean everyone, Permission... defaultPerms){
         if(m == null) return false;
         if(BotUtils.getBotAdmins().contains(m.getId().asLong())) return true;
-        if(m.getBasePermissions().block().contains(Permission.ADMINISTRATOR)) return true;
+        if(g.getOwnerId().asLong() == m.getId().asLong()) return true;
 
         boolean has = false;
+        if(m.getBasePermissions().block().contains(Permission.ADMINISTRATOR)) has = true;
 
-        List<Long> roleWhitelist = null;
-        List<Long> roleBlacklist = null;
-        List<Long> userWhitelist = null;
-        List<Long> userBlacklist = null;
+        List<Long> roleWhitelist = new ArrayList<>();
+        List<Long> roleBlacklist = new ArrayList<>();
+        List<Long> userWhitelist = new ArrayList<>();
+        List<Long> userBlacklist = new ArrayList<>();
         // blacklist only
-        List<Long> roleEverything = null;
-        List<Long> userEverything = null;
+        List<Long> roleEverything = new ArrayList<>();
+        List<Long> userEverything = new ArrayList<>();
+
+        try {
+            List<SQLPermissions> perms = DataManager.getPermissions(g.getId().asLong(), cmd);
+            for(SQLPermissions perm : perms){
+                int type = perm.getType();
+                long hId = perm.getHolderId();
+                if(type == 0)
+                    roleWhitelist.add(hId);
+                else if(type == 1)
+                    userWhitelist.add(hId);
+                else if(type == 2)
+                    roleBlacklist.add(hId);
+                else if(type == 3)
+                    userBlacklist.add(hId);
+            }
+            List<SQLPermissions> everyonePerms = DataManager.getPermissions(g.getId().asLong(), "everything");
+            for(SQLPermissions perm : everyonePerms){
+                int type = perm.getType();
+                long hId = perm.getHolderId();
+                if(type == 2)
+                    roleEverything.add(hId);
+                else if(type == 3)
+                    userEverything.add(hId);
+            }
+        }catch (Exception ex){
+            return false;
+        }
 
         if(userEverything.contains(m.getId().asLong())) return false;
         if(m.getRoles()
@@ -73,7 +109,7 @@ public class PermissionManager {
                 blacklisted = true;
             if(userBlacklist.contains(m.getId().asLong())) blacklisted = true;
             if(!blacklisted){
-                if(m.getBasePermissions().block().containsAll(Arrays.asList(defaultPerms))) has = true;
+                if(defaultPerms.length > 0 && m.getBasePermissions().block().containsAll(Arrays.asList(defaultPerms))) has = true;
                 if(everyone) has = true;
             }
         }

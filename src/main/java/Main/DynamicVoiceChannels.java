@@ -1,5 +1,6 @@
 package Main;
 
+import DataManager.DataManager;
 import discord4j.core.DiscordClient;
 import discord4j.core.event.domain.VoiceStateUpdateEvent;
 import discord4j.core.object.entity.Guild;
@@ -18,8 +19,6 @@ public class DynamicVoiceChannels {
 
     public static void initialize(DiscordClient client){
         guildChannels = new HashMap<>();
-        guildChannels.put(518442628400939009L, new HashMap<>());
-        guildChannels.get(518442628400939009L).put("Allgemein", new ArrayList<>());
         client.getEventDispatcher().on(VoiceStateUpdateEvent.class)
                 .flatMap(e -> {
                     Optional<VoiceChannel> vc1 = e.getOld().isPresent() ? e.getOld().get().getChannel().blockOptional() : Optional.empty();
@@ -39,8 +38,9 @@ public class DynamicVoiceChannels {
     private static HashMap<Long, HashMap<String, List<Long>>> guildChannels;
 
     private static void createVoiceChannel(Guild g, VoiceChannel c, Member m){
-        if(!guildChannels.containsKey(g.getId().asLong())) return;
-        if(!guildChannels.get(g.getId().asLong()).containsKey(c.getName())) return;
+        if(!DataManager.isDVC(g.getId().asLong(), c.getName())) return;
+        if(!guildChannels.containsKey(g.getId().asLong())) guildChannels.put(g.getId().asLong(), new HashMap<>());
+        if(!guildChannels.get(g.getId().asLong()).containsKey(c.getName())) guildChannels.get(g.getId().asLong()).put(c.getName(), new ArrayList<>());
         List<Long> channels = guildChannels.get(g.getId().asLong()).get(c.getName());
         g.createVoiceChannel(vccs -> vccs.setParentId(c.getCategoryId().orElse(null)).setBitrate(c.getBitrate()).setName(c.getName() + " #" + (channels.size() + 1)).setPermissionOverwrites(c.getPermissionOverwrites()).setUserLimit(c.getUserLimit()).setReason("User " + m.getUsername() + "#" + m.getDiscriminator() + " (" + m.getId().asString() + ") joined DVC " + c.getName()))
                 .flatMap(vc -> {

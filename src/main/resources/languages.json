@@ -1,0 +1,26 @@
+{
+  "en": {
+    "languageName": "English",
+    "commands": {
+      "prefix": {
+        "help": {
+          "title": "This is some title",
+          "value": "This is some value",
+          "color": 0
+        }
+      }
+    }
+  },
+  "de": {
+    "languageName": "Deutsch",
+    "commands": {
+      "prefix": {
+        "help": {
+          "title": "Dies ist ein Titel",
+          "value": "Dies ist ein Wert",
+          "color": 1
+        }
+      }
+    }
+  }
+}
