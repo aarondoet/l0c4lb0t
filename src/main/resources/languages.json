@@ -1,26 +1,95 @@
 {
-  "en": {
-    "languageName": "English",
-    "commands": {
-      "prefix": {
+    "en": {
+        "languageName": "English",
         "help": {
-          "title": "This is some title",
-          "value": "This is some value",
-          "color": 0
+            "title": "Help",
+            "footer": "Page {0}/{1}",
+            "closed": "Help page closed by {0}",
+            "customCommands": "Custom Commands",
+            "pages": {
+                "General": {
+                    "help": "`{0}help [page]` - sends the help message",
+                    "about": "`{0}about` - sends some information about this bot (alias: `l0c4lb0t`)",
+                    "stats": "`{0}stats` - sends some stats about this bot"
+                },
+                "Moderation": {
+                    "resetnicks": "`{0}resetnicks` - reset the nicknames of everyone without the \"keepNickname\" permission",
+                    "ban": "`{0}ban <user> [<reason>]` - ban someone you don't like",
+                    "kick": "`{0}kick <user> [<reason>]` - kick someone you don't l ike"
+                },
+                "Automod": {
+                    "anticaps": "`{0}anticaps` - manage message that contain too many uppercase letters",
+                    "invites": "`{0}invites` - manage messages that contain invites",
+                    "joinmessage": "`{0}joinmessage` - send a welcome message when a user joins",
+                    "leavemessage": "`{0}leavemessage` - send a goodbye message when a user leaves",
+                    "banmessage": "`{0}banmessage`"
+                },
+                "Autoroles": {
+                    "reactionroles": "`{0}reactionroles` - give people roles when they react to messages",
+                    "joinrole": ""
+                },
+                "Fun": {
+                    "minesweeper": "`{0}minesweeper`",
+                    "randomnumber": "",
+                    "remind": "",
+                    "cat": "",
+                    "dog": "",
+                    "pussy": ""
+                },
+                "Music": {
+                    "join": "`{0}join`",
+                    "stop": "",
+                    "play": "",
+                    "skip": "",
+                    "search": "",
+                    "queue": "",
+                    "remove": "",
+                    "np": "",
+                    "volume": "",
+                    "pause": "",
+                    "resume": "",
+                    "seek": "",
+                    "playlist": "",
+                    "loop": "",
+                    "playingmessages": ""
+                },
+                "Bot Staff Only": {
+                    "getid": "`{0}getid`",
+                    "delpm": "",
+                    "pcban": "",
+                    "botban": "",
+                    "guildban": "",
+                    "disablepc": "",
+                    "bcall": ""
+                },
+                "uncategorized": {
+                    "prefix": "`{0}prefix`",
+                    "language": "",
+                    "choose": "",
+                    "userlimit": "",
+                    "token": "",
+                    "---weather": "",
+                    "dynamicvoicechannnel": "",
+                    "poll": "",
+                    "permissions": "",
+                    "---script": "",
+                    "command": "",
+                    "report": "",
+                    "blockchannel": "",
+                    "unknowncommandmessage": "",
+                    "suggestions": "",
+                    "botsuggestions": ""
+                }
+            }
+        },
+        "commands": {
+            "prefix": {
+                "help": {
+                    "title": "This is some title",
+                    "value": "This is some value",
+                    "color": 0
+                }
+            }
         }
-      }
     }
-  },
-  "de": {
-    "languageName": "Deutsch",
-    "commands": {
-      "prefix": {
-        "help": {
-          "title": "Dies ist ein Titel",
-          "value": "Dies ist ein Wert",
-          "color": 1
-        }
-      }
-    }
-  }
 }

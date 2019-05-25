@@ -2,11 +2,14 @@ package Main;
 
 import DataManager.DataManager;
 import DataManager.SQLGuild;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import discord4j.core.DiscordClient;
 import discord4j.core.DiscordClientBuilder;
+import discord4j.core.object.Embed;
 import discord4j.core.object.entity.*;
+import discord4j.core.object.reaction.ReactionEmoji;
 import discord4j.core.object.util.Snowflake;
 import discord4j.core.spec.MessageCreateSpec;
 import discord4j.core.spec.MessageEditSpec;
@@ -16,8 +19,7 @@ import reactor.util.annotation.Nullable;
 
 import java.awt.*;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.*;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
@@ -41,6 +43,15 @@ public class BotUtils {
     public static List<Long> getBotAdmins(){return Arrays.asList(226677096091484160L);}
 
     /**
+     * The main color of the bot
+     */
+    public static final Color botColor = new Color(124, 124, 255);
+
+    public static final ReactionEmoji arrowLeft = ReactionEmoji.unicode("\u2B05");
+    public static final ReactionEmoji arrowRight = ReactionEmoji.unicode("\u27A1");
+    public static final ReactionEmoji x = ReactionEmoji.unicode("\u274C");
+
+    /**
      * Gets the prefix of a {@link Guild}
      * @param gId The ID of the {@link Guild}
      * @return The prefix
@@ -54,7 +65,11 @@ public class BotUtils {
     }
 
     /**
-     * Splits the content into single arguments
+     * Splits the content at spaces except they are in quotes. Both single and double quotes work, the beginning quote has to be the same as the ending quote.<br/>
+     * To use quotes inside of a quoted text it has to be escaped ({@code \"} or {@code \'}).
+     * Double quotes don't have to be escaped inside of single quotes and single quotes don't have to be escaped inside of double quotes.<br/>
+     * Every {@code \} gets removed, to write one it has to be escaped too ({@code \\}). {@code \\"} will not escape the quote but result in the backslash character and a quote behind it.
+     *
      * @param content The content you want to parse
      * @return The content split into arguments
      */
@@ -69,40 +84,100 @@ public class BotUtils {
         List<String> args = new ArrayList<>();
         boolean escaped = false;
         boolean inQuotes = false;
+        char quoteChar = '-';
         boolean endedQuote = false;
-        List<Integer> toDelete = new ArrayList<>();
         String currArg = "";
-        for(char c : content.toCharArray()){
-            if(endedQuote){
+        for (char c : content.toCharArray()) {
+            if (endedQuote) {
                 endedQuote = false;
-                if(c == ' ') continue;
+                if (c == ' ') continue;
             }
-            if(c == ' ' && !inQuotes){
+            if (c == ' ' && !inQuotes) {
                 args.add(currArg);
                 currArg = "";
                 escaped = false;
                 continue;
             }
-            if(c == '"' && inQuotes && !escaped){
+            if (c == quoteChar && c != '-' && inQuotes && !escaped) {
                 args.add(currArg);
                 currArg = "";
                 inQuotes = false;
                 endedQuote = true;
+                quoteChar = '-';
                 continue;
             }
-            if(c == '\\' && !escaped){
+            if (c == '\\' && !escaped) {
                 escaped = true;
                 continue;
             }
-            if(c == '"' && !escaped && !inQuotes){
+            if ((c == '"' || c == '\'') && !escaped && !inQuotes) {
+                if(currArg.length() > 0) args.add(currArg);
+                currArg = "";
                 inQuotes = true;
+                quoteChar = c;
                 continue;
             }
             escaped = false;
             currArg += "" + c;
         }
-        if(!endedQuote) args.add(currArg);
+        if (!endedQuote) args.add(currArg);
         return Mono.just(args);
+    }
+
+    /**
+     * Parses a {@link String} into the single arguments. Arguments are wrapped in quotes and separated by commas, both double and single quotes can be used.
+     * Between the end or beginning of the argument and the comma there can any number of spaces.<br/>
+     * To use quotes in an argument it has to be escaped by a backslash. Single quotes can only be escaped in arguments wrapped in single quotes, the same applies to double quotes.
+     * To use backslashes they also have to be escaped with an backslash, new lines can be achieved by escaping an {@code n} character.<br/>
+     * Example:<br/>
+     * {@code "this is an argument", 'the second argument', "argument can contain quotes \", backslashes \\ and line breaks \n."}
+     * @param content
+     * @return
+     */
+    public static List<String> contentToParameters(String content){
+        List<String> args = new ArrayList<>();
+        boolean escaped = false;
+        boolean inQuotes = false;
+        char quoteChar = '-';
+        boolean afterComma = true;
+        String currArg = "";
+        for (char c : content.toCharArray()) {
+            if(inQuotes){
+                if(c == '\\' && !escaped){
+                    escaped = true;
+                    continue;
+                }else if(c == quoteChar && !escaped){
+                    args.add(currArg);
+                    currArg = "";
+                    quoteChar = '-';
+                    afterComma = false;
+                    inQuotes = false;
+                    continue;
+                }
+                if(escaped && c == 'n')
+                    currArg += '\n';
+                else if(escaped)
+                    // fuck you user this is invalid and i have to deal with it because you are too dumb
+                    currArg += "\\" + c;
+                else
+                    currArg += c;
+                escaped = false;
+            }else{
+                if(c == ' '){
+                    continue;
+                }else if(c == ',' && !afterComma){
+                    afterComma = true;
+                    continue;
+                }else if((c == '"' || c == '\'') && afterComma){
+                    quoteChar = c;
+                    inQuotes = true;
+                    continue;
+                }
+                return null;
+            }
+        }
+        if(inQuotes) return null;
+        return args;
     }
 
     /**
@@ -115,7 +190,7 @@ public class BotUtils {
     public static boolean isCommand(String content, String[] cmd, String prefix){
         prefix = escapeRegex(prefix);
         String bId = BotMain.client.getSelfId().get().asString();
-        return Pattern.compile("^(?:" + prefix + "|\\<@\\!?" + bId + "\\> ?)(?:" + String.join("|", cmd) + ")(?: +(.*))?$", Pattern.CASE_INSENSITIVE).matcher(content).matches();
+        return Pattern.compile("^(?:" + prefix + "|\\<@\\!?" + bId + "\\> ?)(?:" + String.join("|", cmd) + ")(?: +(.*))?$", Pattern.CASE_INSENSITIVE + Pattern.DOTALL).matcher(content).matches();
     }
 
     /**
@@ -128,7 +203,7 @@ public class BotUtils {
     public static Mono<String> truncateMessage(String content, String[] cmd, String prefix){
         prefix = escapeRegex(prefix);
         String bId = BotMain.client.getSelfId().get().asString();
-        Matcher matcher = Pattern.compile("^(?:" + prefix + "|\\<@\\!?" + bId + "\\> ?)(?:" + String.join("|", cmd) + ")(?: +(.*))?$", Pattern.CASE_INSENSITIVE).matcher(content);
+        Matcher matcher = Pattern.compile("^(?:" + prefix + "|\\<@\\!?" + bId + "\\> ?)(?:" + String.join("|", cmd) + ")(?: +(.*))?$", Pattern.CASE_INSENSITIVE + Pattern.DOTALL).matcher(content);
         if(matcher.matches())
             return Mono.just(matcher.group(1) == null ? "" : matcher.group(1));
         else
@@ -328,7 +403,18 @@ public class BotUtils {
                 return BotMain.client.getUserById(Snowflake.of(Long.parseLong(m.group(1)))).onErrorResume(x -> Mono.empty());
         }
         return Mono.empty();*/
-        return BotMain.client.getUsers().filter(u -> u.getId().asString().equals(user) || ("<@" + u.getId().asString() + ">").equals(user) || ("<@!" + u.getId().asString() + ">").equals(user) || (u.getUsername() + "#" + u.getDiscriminator()).equals(user)).next();
+        return BotMain.client.getUsers().filter(u -> u.getId().asString().equals(user) || ("<@" + u.getId().asString() + ">").equals(user) || ("<@!" + u.getId().asString() + ">").equals(user) || (u.getUsername() + "#" + u.getDiscriminator()).equals(user)).next()
+                .switchIfEmpty(Mono.just(user)
+                        .flatMap(u -> {
+                            if(u.matches("^\\d+$"))
+                                return BotMain.client.getUserById(Snowflake.of(u));
+                            else if(u.matches("^<@\\d+>$"))
+                                return BotMain.client.getUserById(Snowflake.of(u.substring(2, u.length() - 1)));
+                            else if(u.matches("^<@!\\d+>$"))
+                                return BotMain.client.getUserById(Snowflake.of(u.substring(3, u.length() - 1)));
+                            return Mono.empty();
+                        })
+                );
     }
 
     /**
@@ -349,25 +435,28 @@ public class BotUtils {
      * @param lang    The language of the guild
      */
     public static void sendHelpMessage(TextChannel channel, String cmd, String pref, String lang){
-        //channel.createMessage(LocaleManager.getLanguageString(lang, cmd + ".help.content", pref)).subscribe();
-        channel.createMessage(LocaleManager.getLanguageMessage(lang, "commands." + cmd + ".help", pref)).subscribe();
-        //return channel.createMessage("Error in command " + cmd);
+        //channel.createMessage(LocaleManager.getLanguageMessage(lang, "commands." + cmd + ".help", pref)).subscribe();
+        channel.createMessage("Error in command " + cmd);
     }
 
     /**
      * Sends a {@link Message} to the given channel saying that an error occurred while performing the action
      * @param channel The {@link MessageChannel} the {@link Message} should be sent in
+     * @return A {@link Mono} with the value true
      */
-    public static void sendErrorMessage(MessageChannel channel){
+    public static Mono<Boolean> sendErrorMessage(MessageChannel channel){
         channel.createMessage("An error occurred while performing this action.").subscribe();
+        return Mono.just(true);
     }
 
     /**
      * Sends a {@link Message} to the given channel saying the {@link Member} does not have the permissions to perform the {@link Command}
      * @param channel The {@link MessageChannel} the {@link Message} should get sent in
+     * @return A {@link Mono} with the value true
      */
-    public static void sendNoPermissionsMessage(MessageChannel channel){
+    public static Mono<Boolean> sendNoPermissionsMessage(MessageChannel channel){
         channel.createMessage("You don't have the permissions to perform this action.").subscribe();
+        return Mono.just(true);
     }
 
     /**
@@ -404,9 +493,9 @@ public class BotUtils {
      */
     public static Long getPollDuration(String duration){
         long d = 0L;
-        Matcher m = Pattern.compile("^\\d+$").matcher(duration);
+        Matcher m = Pattern.compile("^(\\d+)$").matcher(duration);
         if(m.matches())
-            d = Long.parseLong(m.group(1));
+            d = Long.parseLong(m.group(1)) * 60;
         else{
             m = Pattern.compile("(?: *(\\d+) *d| *(\\d+) *h| *(\\d+) *min| *(\\d+) *s)+").matcher(duration);
             if(m.matches()){
@@ -467,5 +556,78 @@ public class BotUtils {
      * The regular expression to match invites. Group 0 is the invite code without the discord url in front of it.
      */
     public static final String INVITE_MATCHER = "(?<=discord.gg\\/|discordapp.com\\/invite\\/)[a-zA-Z0-9-]{1,50}"; // [^1lIO0\W_]+
+
+    /**
+     * Adds both lists in one list
+     * @param a The first list
+     * @param b The second list
+     * @return The added lists
+     */
+    public static <T extends Object> List<T> addLists(List<T> a, List<T> b){
+        List<T> newList = new ArrayList<>();
+        newList.addAll(a);
+        newList.addAll(b);
+        return newList;
+    }
+
+    /**
+     * Gives you the page number the item is displayed on.
+     * @param itemIndex    The index of the item (first item has index 1)
+     * @param itemsPerPage The number of items which should be displayed on each page
+     * @return The page number
+     */
+    public static long getPageNumber(long itemIndex, long itemsPerPage){
+        return Math.round(Math.ceil((double)itemIndex / (double)itemsPerPage));
+    }
+
+    /**
+     * Tells you if the message is a suggestion message
+     * @param message The message you want to check
+     * @return {@code true} if the message is a suggestion message, otherwise {@code false}
+     */
+    public static boolean isSuggestionMessage(Message message){
+        if(message.getAuthor().isEmpty()) return false;
+        if(message.getAuthor().get().getId().asLong() != message.getClient().getSelfId().get().asLong()) return false;
+        if(message.getEmbeds().size() != 1) return false;
+        Embed embed = message.getEmbeds().get(0);
+        if(!embed.getTitle().orElse("").equals("Suggestions")) return false;
+        if(embed.getFooter().isEmpty()) return false;
+        if(!embed.getFooter().get().getText().matches("^Page \\d+/\\d+$")) return false;
+        return true;
+    }
+
+    /**
+     * Returns the page the help message is showing
+     * @param message The message
+     * @return The page the message is showing or {@code -1} if it is no help message
+     */
+    public static int getHelpPageNumber(Message message){
+        if(message.getAuthor().isEmpty()) return -1;
+        if(message.getAuthor().get().getId().asLong() != message.getClient().getSelfId().get().asLong()) return -1;
+        if(message.getEmbeds().size() != 1) return -1;
+        Embed embed = message.getEmbeds().get(0);
+        String lang = LocaleManager.getGuildLanguage(message.getGuild().block());
+        if(!embed.getTitle().orElse("").equals(LocaleManager.getLanguageString(lang,"help.title"))) return -1;
+        if(embed.getFooter().isEmpty()) return -1;
+        Matcher m = Pattern.compile(LocaleManager.getLanguageString(lang, "help.footer", "(\\d+)", "\\d+")).matcher(embed.getFooter().get().getText());
+        if(m.matches())
+            return Integer.parseInt(m.group(1))-1;
+        return -1;
+    }
+
+    /**
+     * Returns all help pages including the list of custom commands for the guild
+     * @param guild The guild
+     * @return All help pages
+     */
+    public static Map<String, Map<String, String>> getHelpPages(@Nullable Guild guild){
+        String lang = LocaleManager.getGuildLanguage(guild);
+        Map<String, Map<String, String>> pages = new ObjectMapper().convertValue(LocaleManager.getLanguageElement(lang, "help.pages"), new TypeReference<Map<String, Map<String, String>>>(){});
+        Map<String, String> customCommands = guild == null ? new HashMap<>() : DataManager.getCustomCommands(guild.getId().asLong());
+        Set<String> cmds = customCommands.keySet();
+        cmds.forEach(cmd -> customCommands.put(cmd, "`{0}" + cmd + "`"));
+        if(customCommands.size() > 0) pages.put(LocaleManager.getLanguageString(lang, "help.customCommands"), customCommands);
+        return pages;
+    }
 
 }

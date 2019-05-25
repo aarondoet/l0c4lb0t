@@ -4,3 +4,5 @@ src/main/java/Main/Tokens.java
 target/
 .idea/
 *.class
+*.jar
+src/main/java/Main/Tokens.java

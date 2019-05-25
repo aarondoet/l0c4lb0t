@@ -6,21 +6,22 @@ import Scripts.ScriptExecutor;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import discord4j.core.object.entity.Guild;
-import discord4j.core.object.entity.TextChannel;
-import discord4j.core.object.util.Snowflake;
+import discord4j.core.object.reaction.ReactionEmoji;
+import discord4j.core.object.util.Image;
 import org.apache.commons.dbutils.DbUtils;
-import reactor.core.publisher.Mono;
 
+import java.awt.*;
 import java.sql.*;
 import java.time.Instant;
 import java.util.*;
+import java.util.List;
 
 public class DataManager {
 
+    private static final String schemeName = "l0c4lb0t";
     private static final int port = 3306;
-    private static final String url = "jdbc:mysql://localhost:" + port + "/l0c4lb0t?useUnicode=true&useJDBCCompliantTimezoneShift=true&useLegacyDatetimeCode=false&serverTimezone=UTC";
+    private static final String url = "jdbc:mysql://localhost:" + port + "/" + schemeName + "?useUnicode=true&useJDBCCompliantTimezoneShift=true&useLegacyDatetimeCode=false&serverTimezone=UTC";
 
-    //private static Connection con = null;
     private static HikariConfig config = new HikariConfig();
     private static HikariDataSource ds;
     static {
@@ -37,16 +38,6 @@ public class DataManager {
         return ds.getConnection();
     }
 
-    /*private static void ensureConnection(){
-        boolean connect = false;
-        if(con == null) connect = true;
-        if(connect) {
-            try {
-                con = DriverManager.getConnection(url, Tokens.MYSQL_USERNAME, Tokens.MYSQL_PASSWORD);
-            } catch(SQLException ex {}
-        }
-    }*/
-
     public enum Table {
         USERS("users"),
         MEMBERS("members"),
@@ -60,11 +51,56 @@ public class DataManager {
         WHITELISTED_INVITES("whitelistedinvites"),
         BLOCKED_CHANNELS("blockedchannels"),
         SCRIPTS("scripts"),
-        BOT_STATS("botstats");
+        BOT_STATS("botstats"),
+        BOT_SUGGESTIONS("botsuggestions"),
+        BOT_SUGGESTION_NOTIFICATIONS("botsuggestionnotifications"),
+        SUGGESTIONS("suggestions"),
+        SUGGESTION_NOTIFICATIONS("suggestionnotifications");
 
         private final String name;
         Table(String name){this.name = name;}
         public String getName(){return this.name;}
+    }
+
+    public enum SuggestionStatus {
+        CREATED((byte)0, "created", new Color(69, 69, 69), ReactionEmoji.unicode("\uD83D\uDDD2")),
+        ACCEPTED((byte)1, "accepted", new Color(0, 135, 189), ReactionEmoji.unicode("\u2611")),
+        REJECTED((byte)2, "rejected", new Color(255, 82, 70), ReactionEmoji.unicode("\u274C")),
+        DELETED((byte)3, "deleted", new Color(237, 10, 14), ReactionEmoji.unicode("")),
+        IN_PROGRESS((byte)4, "in progress", new Color(31, 117, 254), ReactionEmoji.unicode("\u23F3")),
+        IMPLEMENTED((byte)5, "implemented", new Color(86, 130, 3), ReactionEmoji.unicode("\u2705"));
+
+        private final byte status;
+        private final String name;
+        private final Color color;
+        private final ReactionEmoji emoji;
+        SuggestionStatus(byte status, String name, Color color, ReactionEmoji emoji){this.status = status;this.name = name;this.color = color;this.emoji = emoji;}
+        public byte getStatus(){return this.status;}
+        public String getName(){return this.name;}
+        public Color getColor(){return this.color;}
+        public ReactionEmoji getEmoji(){return this.emoji;}
+
+        public static SuggestionStatus getSuggestionStatus(byte status){
+            for(SuggestionStatus s : SuggestionStatus.values())
+                if(s.getStatus() == status)
+                    return s;
+            return null;
+        }
+        public static SuggestionStatus getSuggestionStatus(String status){
+            try{
+                byte b = Byte.parseByte(status);
+                return getSuggestionStatus(b);
+            }catch (NumberFormatException ex){
+                try{
+                    return SuggestionStatus.valueOf(status.toUpperCase());
+                }catch (IllegalArgumentException ex2){
+                    for(SuggestionStatus s : SuggestionStatus.values())
+                        if(s.getName().equalsIgnoreCase(status))
+                            return s;
+                }
+            }
+            return null;
+        }
     }
 
     public static void initialize(){
@@ -99,6 +135,7 @@ public class DataManager {
             String createGuildsTable = "CREATE TABLE IF NOT EXISTS " + Table.GUILDS.getName() + " (" +
                     "guild_id BIGINT," +
                     "name TINYTEXT," +
+                    "icon_url TINYTEXT," +
                     "created_at TIMESTAMP," +
                     "joined_at TIMESTAMP," +
                     "owner_id BIGINT," +
@@ -110,6 +147,7 @@ public class DataManager {
                     "ban_message TEXT," +
                     "unknown_command_message TEXT," +
                     "public_channel_id BIGINT," +
+                    "suggestion_channel_id BIGINT," +
                     "delete_invites BOOLEAN," +
                     "invite_warning TEXT," +
                     "sent_message_count INT," +
@@ -162,7 +200,7 @@ public class DataManager {
                     "guild_id BIGINT," +
                     "type TINYTEXT," +
                     "name TINYTEXT," +
-                    "content MEDIUMBLOB" +
+                    "content MEDIUMTEXT" +
                     ")";
             String createStatsTable = "CREATE TABLE IF NOT EXISTS " + Table.BOT_STATS.getName() + " (" +
                     "sent_message_count INT," +
@@ -174,6 +212,36 @@ public class DataManager {
                     "guild_count INT," +
                     "user_count INT" +
                     ")";
+            String createBotSuggestionsTable = "CREATE TABLE IF NOT EXISTS " + Table.BOT_SUGGESTIONS.getName() + " (" +
+                    "id INT NOT NULL PRIMARY KEY AUTO_INCREMENT," +
+                    "title TINYTEXT," +
+                    "content TEXT," +
+                    "created_at TIMESTAMP," +
+                    "user_id BIGINT," +
+                    "status TINYINT," +
+                    "detailed_status TEXT," +
+                    "last_update TIMESTAMP" +
+                    ")";
+            String createBotSuggestionNotificationsTable = "CREATE TABLE IF NOT EXISTS " + Table.BOT_SUGGESTION_NOTIFICATIONS.getName() + " (" +
+                    "suggestion_id INT," +
+                    "user_id BIGINT" +
+                    ")";
+            String createSuggestionsTable = "CREATE TABLE IF NOT EXISTS " + Table.SUGGESTIONS.getName() + " (" +
+                    "guild_id BIGINT," +
+                    "id INT," +
+                    "title TINYTEXT," +
+                    "content TEXT," +
+                    "created_at TIMESTAMP," +
+                    "user_id BIGINT," +
+                    "status TINYINT," +
+                    "detailed_status TEXT," +
+                    "last_update TIMESTAMP" +
+                    ")";
+            String createSuggestionNotificationTable = "CREATE TABLE IF NOT EXISTS " + Table.SUGGESTION_NOTIFICATIONS.getName() + " (" +
+                    "guild_id BIGINT," +
+                    "suggestion_id INT," +
+                    "user_id BIGINT" +
+                    ")";
             stmt = con.createStatement();
             stmt.execute(createGuildsTable);
             stmt.execute(createMembersTable);
@@ -184,6 +252,10 @@ public class DataManager {
             stmt.execute(createScriptsTable);
             stmt.execute(createCustomCommandsTable);
             stmt.execute(createBlockedChannelsTable);
+            stmt.execute(createBotSuggestionsTable);
+            stmt.execute(createBotSuggestionNotificationsTable);
+            stmt.execute(createSuggestionsTable);
+            stmt.execute(createSuggestionNotificationTable);
             stmt.close();
         }catch(SQLException ex){
             ex.printStackTrace();
@@ -191,7 +263,7 @@ public class DataManager {
             timer.schedule(new TimerTask() {
                 @Override
                 public void run() {
-                    initialize();
+                    //initialize();
                 }
             }, 50);
         }finally {
@@ -211,8 +283,8 @@ public class DataManager {
             stmt.setLong(1, gId);
             rs = stmt.executeQuery();
             registered = rs.next();
-        } catch (SQLException e) {
-            e.printStackTrace();
+        } catch (SQLException ex) {
+            ex.printStackTrace();
         }finally {
             DbUtils.closeQuietly(rs);
             DbUtils.closeQuietly(stmt);
@@ -262,7 +334,7 @@ public class DataManager {
             return "";
     }
 
-    public static Mono<Void> initializeGuild(Guild g){
+    public static void initializeGuild(Guild g){
         Connection con = null;
         PreparedStatement stmt = null;
         try {
@@ -283,9 +355,16 @@ public class DataManager {
                     "sent_public_message_count," +      // 13
                     "sent_unknown_command_count," +     // 14
                     "sent_custom_command_count," +      // 15
-                    "token" +                           // 16
+                    "token," +                          // 16
+                    "icon_url," +                       // 17
+                    "join_role," +                      // 18
+                    "join_message," +                   // 19
+                    "leave_message," +                  // 20
+                    "ban_message," +                    // 21
+                    "unknown_command_message," +        // 22
+                    "suggestion_channel_id" +           // 23
                     ")" +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             stmt.setLong(1, g.getId().asLong());
             stmt.setString(2, g.getName());
             stmt.setTimestamp(3, Timestamp.from(BotUtils.getSnowflakeCreationDate(g.getId().asLong())));
@@ -302,21 +381,50 @@ public class DataManager {
             stmt.setInt(14, 0);
             stmt.setInt(15, 0);
             stmt.setString(16, generateToken());
+            stmt.setString(17, g.getIconUrl(Image.Format.PNG).orElse(""));
+            stmt.setLong(18, 0);
+            stmt.setString(19, "");
+            stmt.setString(20, "");
+            stmt.setString(21, "");
+            stmt.setString(22, "");
+            stmt.setLong(23, 0L);
             stmt.executeUpdate();
-        } catch (SQLException e) {
-            e.printStackTrace();
+        } catch (SQLException ex) {
+            ex.printStackTrace();
         }finally {
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
-        return Mono.empty();
+    }
+
+    public static void updateGuild(Guild g){
+        Connection con = null;
+        PreparedStatement stmt = null;
+        try {
+            con = getConnection();
+            stmt = con.prepareStatement("UPDATE " + Table.GUILDS.getName() + " SET " +
+                    "name=?," +
+                    "icon_url=?," +
+                    "owner_id=?" +
+                    " WHERE guild_id=?");
+            stmt.setString(1, g.getName());
+            stmt.setString(2, g.getIconUrl(Image.Format.PNG).orElse(""));
+            stmt.setLong(3, g.getOwnerId().asLong());
+            stmt.setLong(4, g.getId().asLong());
+            stmt.executeUpdate();
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+        }finally {
+            DbUtils.closeQuietly(stmt);
+            DbUtils.closeQuietly(con);
+        }
     }
 
     public static SQLGuild getGuild(Long gId){
         Connection con = null;
         PreparedStatement stmt = null;
         ResultSet rs = null;
-        SQLGuild g = null;
+        SQLGuild g = new SQLGuild();
         try {
             con = getConnection();
             stmt = con.prepareStatement("SELECT * FROM " + Table.GUILDS.getName() + " WHERE guild_id=?");
@@ -325,6 +433,7 @@ public class DataManager {
             rs.next();
             g = new SQLGuild(rs.getLong("guild_id"),
                     rs.getString("name"),
+                    rs.getString("icon_url"),
                     rs.getTimestamp("created_at").toInstant(),
                     rs.getTimestamp("joined_at").toInstant(),
                     rs.getLong("owner_id"),
@@ -343,7 +452,9 @@ public class DataManager {
                     rs.getInt("sent_public_message_count"),
                     rs.getInt("sent_unknown_command_count"),
                     rs.getInt("sent_custom_command_count"),
-                    rs.getString("token"));
+                    rs.getString("token"),
+                    rs.getLong("suggestion_channel_id")
+            );
         }catch(SQLException ex){
             ex.printStackTrace();
         }finally {
@@ -490,8 +601,8 @@ public class DataManager {
             rs = stmt.executeQuery();
             while(rs.next())
                 dvcs.add(rs.getString("name"));
-        } catch (SQLException e) {
-            e.printStackTrace();
+        } catch (SQLException ex) {
+            ex.printStackTrace();
         } finally {
             DbUtils.closeQuietly(rs);
             DbUtils.closeQuietly(stmt);
@@ -532,8 +643,8 @@ public class DataManager {
             stmt.setString(2, name);
             stmt.executeUpdate();
             success = true;
-        }catch (SQLException e){
-            e.printStackTrace();
+        }catch (SQLException ex){
+            ex.printStackTrace();
         }finally {
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
@@ -551,8 +662,8 @@ public class DataManager {
             stmt.setString(2, name);
             stmt.executeUpdate();
             success = true;
-        }catch (SQLException e){
-            e.printStackTrace();
+        }catch (SQLException ex){
+            ex.printStackTrace();
         }finally {
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
@@ -768,9 +879,8 @@ public class DataManager {
             stmt.setLong(1, gId);
             stmt.setString(2, event.getEventName());
             stmt.setString(3, name);
-            Blob blob = con.createBlob();
-            blob.setBytes(1, content.getBytes());
-            stmt.setBlob(4, blob);
+            stmt.setString(4, content);
+            stmt.executeUpdate();
             success = true;
         }catch(SQLException ex){
             ex.printStackTrace();
@@ -791,10 +901,8 @@ public class DataManager {
             stmt.setLong(1, gId);
             stmt.setString(2, event.getEventName());
             rs = stmt.executeQuery();
-            while(rs.next()) {
-                Blob blob = rs.getBlob("content");
-                scripts.add(new String(blob.getBytes(1, (int)blob.length())));
-            }
+            while(rs.next())
+                scripts.add(rs.getString("content"));
         }catch(SQLException ex){
             ex.printStackTrace();
         }finally {
@@ -826,8 +934,47 @@ public class DataManager {
         }
         return channels;
     }
+    public static boolean addBlockedChannel(Long gId, Long cId){
+        Connection con = null;
+        PreparedStatement stmt = null;
+        boolean success = false;
+        try{
+            con = getConnection();
+            stmt = con.prepareStatement("INSERT INTO " + Table.BLOCKED_CHANNELS.getName() + " (guild_id, channel_id) VALUES (?, ?)");
+            stmt.setLong(1, gId);
+            stmt.setLong(2, cId);
+            stmt.executeUpdate();
+            success = true;
+        }catch (SQLException ex){
+            ex.printStackTrace();
+        }finally {
+            DbUtils.closeQuietly(stmt);
+            DbUtils.closeQuietly(con);
+        }
+        return success;
+    }
+    public static boolean removeBlockedChannel(Long gId, Long cId){
+        Connection con = null;
+        PreparedStatement stmt = null;
+        boolean success = false;
+        try {
+            con = getConnection();
+            stmt = con.prepareStatement("DELETE FROM " + Table.BLOCKED_CHANNELS.getName() + " WHERE guild_id=? AND channel_id=?");
+            stmt.setLong(1, gId);
+            stmt.setLong(2, cId);
+            stmt.executeUpdate();
+            success = true;
+        }catch (SQLException ex){
+            ex.printStackTrace();
+        }finally {
+            DbUtils.closeQuietly(stmt);
+            DbUtils.closeQuietly(con);
+        }
+        return success;
+    }
 
     public static Map<String, String> getCustomCommands(Long gId){
+        if(gId == 0) return new HashMap<>();
         Connection con = null;
         PreparedStatement stmt = null;
         ResultSet rs = null;
@@ -880,6 +1027,426 @@ public class DataManager {
             stmt.executeUpdate();
             success = true;
         }catch(SQLException ex){
+            ex.printStackTrace();
+        }finally {
+            DbUtils.closeQuietly(stmt);
+            DbUtils.closeQuietly(con);
+        }
+        return success;
+    }
+
+    public static int addBotSuggestion(Long uId, String title, String content, Instant createdAt){
+        Connection con = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+        int suggestionId = -1;
+        try {
+            con = getConnection();
+            stmt = con.prepareStatement("INSERT INTO " + Table.BOT_SUGGESTIONS.getName() + " (id, user_id, title, content, created_at, status, detailed_status, last_update) VALUES (NULL, ?, ?, ?, ?, ?, ?, ?)", Statement.RETURN_GENERATED_KEYS);
+            stmt.setLong(1, uId);
+            stmt.setString(2, title);
+            stmt.setString(3, content);
+            stmt.setTimestamp(4, Timestamp.from(createdAt));
+            stmt.setByte(5, (byte)0);
+            stmt.setString(6, "Opened");
+            stmt.setTimestamp(7, Timestamp.from(createdAt));
+            stmt.executeUpdate();
+            rs = stmt.getGeneratedKeys();
+            if(rs.next())
+                suggestionId = rs.getInt(1);
+        }catch (SQLException ex){
+            ex.printStackTrace();
+        }finally {
+            DbUtils.closeQuietly(stmt);
+            DbUtils.closeQuietly(rs);
+            DbUtils.closeQuietly(con);
+        }
+        return suggestionId;
+    }
+    public static SQLBotSuggestion getBotSuggestion(int sId){
+        Connection con = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+        SQLBotSuggestion suggestion = null;
+        try{
+            con = getConnection();
+            stmt = con.prepareStatement("SELECT * FROM " + Table.BOT_SUGGESTIONS.getName() + " WHERE id=?");
+            stmt.setInt(1, sId);
+            rs = stmt.executeQuery();
+            if(rs.next())
+                suggestion = new SQLBotSuggestion(
+                        rs.getString("title"),
+                        rs.getString("content"),
+                        rs.getByte("status"),
+                        rs.getString("detailed_status"),
+                        rs.getInt("id"),
+                        rs.getLong("user_id"),
+                        rs.getTimestamp("created_at").toInstant(),
+                        rs.getTimestamp("last_update").toInstant()
+                );
+        }catch (SQLException ex){
+            ex.printStackTrace();
+        }finally {
+            DbUtils.closeQuietly(rs);
+            DbUtils.closeQuietly(stmt);
+            DbUtils.closeQuietly(con);
+        }
+        return suggestion;
+    }
+    public static List<SQLBotSuggestion> getBotSuggestions(long pageNumber, long itemsPerPage){
+        Connection con = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+        List<SQLBotSuggestion> suggestions = new ArrayList<>();
+        try{
+            con = getConnection();
+            long startId = (pageNumber-1)*itemsPerPage+1;
+            stmt = con.prepareStatement(
+                    "SELECT * FROM " + Table.BOT_SUGGESTIONS.getName() + " WHERE status<>? AND id>=" +
+                        "(SELECT id FROM" +
+                            "(SELECT id FROM " + Table.BOT_SUGGESTIONS.getName() + " WHERE status<>? ORDER BY id ASC LIMIT ?)" +
+                        "AS mostInner ORDER BY id DESC LIMIT 1)" +
+                    "ORDER BY id ASC LIMIT ?"
+            );
+            stmt.setByte(1, SuggestionStatus.DELETED.getStatus());
+            stmt.setByte(2,SuggestionStatus.DELETED.getStatus());
+            stmt.setLong(3, startId);
+            stmt.setLong(4, itemsPerPage);
+            rs = stmt.executeQuery();
+            while(rs.next())
+                suggestions.add(new SQLBotSuggestion(
+                        rs.getString("title"),
+                        rs.getString("content"),
+                        rs.getByte("status"),
+                        rs.getString("detailed_status"),
+                        rs.getInt("id"),
+                        rs.getLong("user_id"),
+                        rs.getTimestamp("created_at").toInstant(),
+                        rs.getTimestamp("last_update").toInstant()
+                ));
+        }catch (SQLException ex){
+            ex.printStackTrace();
+        }finally {
+            DbUtils.closeQuietly(rs);
+            DbUtils.closeQuietly(stmt);
+            DbUtils.closeQuietly(con);
+        }
+        return suggestions;
+    }
+    public static long getBotSuggestionPageCount(long itemsPerPage){
+        Connection con = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+        long count = -1;
+        try{
+            con = getConnection();
+            stmt = con.prepareStatement("SELECT COUNT(*) AS count FROM " + Table.BOT_SUGGESTIONS.getName() + " WHERE status<>?");
+            stmt.setByte(1, SuggestionStatus.DELETED.getStatus());
+            rs = stmt.executeQuery();
+            if(rs.next())
+                count = rs.getLong("count");
+        }catch (SQLException ex){
+            ex.printStackTrace();
+        }finally {
+            DbUtils.closeQuietly(rs);
+            DbUtils.closeQuietly(stmt);
+            DbUtils.closeQuietly(con);
+        }
+        return Math.round(Math.ceil((double)count / (double)itemsPerPage));
+    }
+    public static boolean setBotSuggestion(int sId, String key, Object value, JDBCType type){
+        Connection con = null;
+        PreparedStatement stmt = null;
+        boolean success = false;
+        try {
+            con = getConnection();
+            stmt = con.prepareStatement("UPDATE " + Table.BOT_SUGGESTIONS.getName() + " SET " + key + "=? WHERE id=?");
+            stmt.setObject(1, value, type);
+            stmt.setInt(2, sId);
+            stmt.executeUpdate();
+            success = true;
+        }catch (SQLException ex){
+            ex.printStackTrace();
+        }finally {
+            DbUtils.closeQuietly(stmt);
+            DbUtils.closeQuietly(con);
+        }
+        return success;
+    }
+    public static boolean setBotSuggestionStatus(int sId, byte status, String detailedStatus, Instant editedTimestamp){
+        Connection con = null;
+        PreparedStatement stmt = null;
+        boolean success = false;
+        try {
+            con = getConnection();
+            stmt = con.prepareStatement("UPDATE " + Table.BOT_SUGGESTIONS.getName() + " SET status=?, detailed_status=?, last_update=? WHERE id=?");
+            stmt.setByte(1, status);
+            stmt.setString(2, detailedStatus);
+            stmt.setTimestamp(3, Timestamp.from(editedTimestamp));
+            stmt.setInt(4, sId);
+            stmt.executeUpdate();
+            success = true;
+        }catch (SQLException ex){
+            ex.printStackTrace();
+        }finally {
+            DbUtils.closeQuietly(stmt);
+            DbUtils.closeQuietly(con);
+        }
+        return success;
+    }
+
+    public static List<Long> getBotSuggestionNotifications(int sId){
+        Connection con = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+        List<Long> uIds = new ArrayList<>();
+        try {
+            con = getConnection();
+            stmt = con.prepareStatement("SELECT * FROM " + Table.BOT_SUGGESTION_NOTIFICATIONS.getName() + " WHERE suggestion_id=?");
+            stmt.setInt(1, sId);
+            rs = stmt.executeQuery();
+            while(rs.next())
+                uIds.add(rs.getLong("user_id"));
+        }catch (SQLException ex){
+            ex.printStackTrace();
+        }finally {
+            DbUtils.closeQuietly(rs);
+            DbUtils.closeQuietly(stmt);
+            DbUtils.closeQuietly(con);
+        }
+        return uIds;
+    }
+    public static boolean setBotSuggestionNotification(Long uId, int sId, boolean notify){
+        Connection con = null;
+        PreparedStatement stmt = null;
+        boolean success = false;
+        try{
+            con = getConnection();
+            if(notify)
+                stmt = con.prepareStatement("INSERT INTO " + Table.BOT_SUGGESTION_NOTIFICATIONS.getName() + " (user_id, suggestion_id) VALUES (?, ?)");
+            else
+                stmt = con.prepareStatement("DELETE FROM " + Table.BOT_SUGGESTION_NOTIFICATIONS.getName() + " WHERE user_id=? AND suggestion_id=?");
+            stmt.setLong(1, uId);
+            stmt.setInt(2, sId);
+            stmt.executeUpdate();
+            success = true;
+        }catch (SQLException ex){
+            ex.printStackTrace();
+        }finally {
+            DbUtils.closeQuietly(stmt);
+            DbUtils.closeQuietly(con);
+        }
+        return success;
+    }
+
+    public static int addSuggestion(Long gId, Long uId, String title, String content, Instant createdAt){
+        Connection con = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+        int suggestionId = -1;
+        try {
+            con = getConnection();
+            stmt = con.prepareStatement("INSERT INTO " + Table.SUGGESTIONS.getName() + " (id, user_id, title, content, created_at, status, detailed_status, last_update, guild_id) VALUES ((SELECT count FROM (SELECT MAX(id) AS count FROM " + Table.SUGGESTIONS.getName() + " WHERE guild_id=?) AS cnt)+1, ?, ?, ?, ?, ?, ?, ?, ?)", Statement.RETURN_GENERATED_KEYS);
+            stmt.setLong(1, gId);
+            stmt.setLong(2, uId);
+            stmt.setString(3, title);
+            stmt.setString(4, content);
+            stmt.setTimestamp(5, Timestamp.from(createdAt));
+            stmt.setByte(6, (byte)0);
+            stmt.setString(7, "Opened");
+            stmt.setTimestamp(8, Timestamp.from(createdAt));
+            stmt.setLong(9, gId);
+            stmt.executeUpdate();
+            rs = stmt.getGeneratedKeys();
+            if(rs.next())
+                suggestionId = rs.getInt(1);
+        }catch (SQLException ex){
+            ex.printStackTrace();
+        }finally {
+            DbUtils.closeQuietly(stmt);
+            DbUtils.closeQuietly(rs);
+            DbUtils.closeQuietly(con);
+        }
+        return suggestionId;
+    }
+    public static SQLSuggestion getSuggestion(Long gId, int sId){
+        Connection con = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+        SQLSuggestion suggestion = null;
+        try{
+            con = getConnection();
+            stmt = con.prepareStatement("SELECT * FROM " + Table.SUGGESTIONS.getName() + " WHERE id=? AND guild_id=?");
+            stmt.setInt(1, sId);
+            stmt.setLong(2, gId);
+            rs = stmt.executeQuery();
+            if(rs.next())
+                suggestion = new SQLSuggestion(
+                        rs.getLong("guild_id"),
+                        rs.getString("title"),
+                        rs.getString("content"),
+                        rs.getByte("status"),
+                        rs.getString("detailed_status"),
+                        rs.getInt("id"),
+                        rs.getLong("user_id"),
+                        rs.getTimestamp("created_at").toInstant(),
+                        rs.getTimestamp("last_update").toInstant()
+                );
+        }catch (SQLException ex){
+            ex.printStackTrace();
+        }finally {
+            DbUtils.closeQuietly(rs);
+            DbUtils.closeQuietly(stmt);
+            DbUtils.closeQuietly(con);
+        }
+        return suggestion;
+    }
+    public static List<SQLSuggestion> getSuggestions(Long gId, long pageNumber, long itemsPerPage){
+        Connection con = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+        List<SQLSuggestion> suggestions = new ArrayList<>();
+        try{
+            con = getConnection();
+            long startId = (pageNumber-1)*itemsPerPage+1;
+            stmt = con.prepareStatement(
+                    "SELECT * FROM " + Table.SUGGESTIONS.getName() + " WHERE guild_id=? AND status<>? AND id>=" +
+                        "(SELECT id FROM" +
+                            "(SELECT id FROM " + Table.SUGGESTIONS.getName() + " WHERE guild_id=? AND status<>? ORDER BY id ASC LIMIT ?)" +
+                        "AS mostInner ORDER BY id DESC LIMIT 1)" +
+                    "ORDER BY id ASC LIMIT ?"
+            );
+            stmt.setByte(1, SuggestionStatus.DELETED.getStatus());
+            stmt.setLong(2, gId);
+            stmt.setByte(3, SuggestionStatus.DELETED.getStatus());
+            stmt.setLong(4, gId);
+            stmt.setLong(5, startId);
+            stmt.setLong(6, itemsPerPage);
+            rs = stmt.executeQuery();
+            while(rs.next())
+                suggestions.add(new SQLSuggestion(
+                        rs.getLong("guild_id"),
+                        rs.getString("title"),
+                        rs.getString("content"),
+                        rs.getByte("status"),
+                        rs.getString("detailed_status"),
+                        rs.getInt("id"),
+                        rs.getLong("user_id"),
+                        rs.getTimestamp("created_at").toInstant(),
+                        rs.getTimestamp("last_update").toInstant()
+                ));
+        }catch (SQLException ex){
+            ex.printStackTrace();
+        }finally {
+            DbUtils.closeQuietly(rs);
+            DbUtils.closeQuietly(stmt);
+            DbUtils.closeQuietly(con);
+        }
+        return suggestions;
+    }
+    public static long getSuggestionPageCount(Long gId, long itemsPerPage){
+        Connection con = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+        long count = -1;
+        try{
+            con = getConnection();
+            stmt = con.prepareStatement("SELECT COUNT(*) AS count FROM " + Table.SUGGESTIONS.getName() + " WHERE status<>? AND guild_id=?");
+            stmt.setByte(1, SuggestionStatus.DELETED.getStatus());
+            stmt.setLong(2, gId);
+            rs = stmt.executeQuery();
+            if(rs.next())
+                count = rs.getLong("count");
+        }catch (SQLException ex){
+            ex.printStackTrace();
+        }finally {
+            DbUtils.closeQuietly(rs);
+            DbUtils.closeQuietly(stmt);
+            DbUtils.closeQuietly(con);
+        }
+        return Math.round(Math.ceil((double)count / (double)itemsPerPage));
+    }
+    public static boolean setSuggestion(Long gId, int sId, String key, Object value, JDBCType type){
+        Connection con = null;
+        PreparedStatement stmt = null;
+        boolean success = false;
+        try {
+            con = getConnection();
+            stmt = con.prepareStatement("UPDATE " + Table.SUGGESTIONS.getName() + " SET " + key + "=? WHERE id=? AND guild_id=?");
+            stmt.setObject(1, value, type);
+            stmt.setInt(2, sId);
+            stmt.setLong(3, gId);
+            stmt.executeUpdate();
+            success = true;
+        }catch (SQLException ex){
+            ex.printStackTrace();
+        }finally {
+            DbUtils.closeQuietly(stmt);
+            DbUtils.closeQuietly(con);
+        }
+        return success;
+    }
+    public static boolean setSuggestionStatus(Long gId, int sId, byte status, String detailedStatus, Instant editedTimestamp){
+        Connection con = null;
+        PreparedStatement stmt = null;
+        boolean success = false;
+        try {
+            con = getConnection();
+            stmt = con.prepareStatement("UPDATE " + Table.SUGGESTIONS.getName() + " SET status=?, detailed_status=?, last_update=? WHERE id=? AND guild_id=?");
+            stmt.setByte(1, status);
+            stmt.setString(2, detailedStatus);
+            stmt.setTimestamp(3, Timestamp.from(editedTimestamp));
+            stmt.setInt(4, sId);
+            stmt.setLong(5, gId);
+            stmt.executeUpdate();
+            success = true;
+        }catch (SQLException ex){
+            ex.printStackTrace();
+        }finally {
+            DbUtils.closeQuietly(stmt);
+            DbUtils.closeQuietly(con);
+        }
+        return success;
+    }
+
+    public static List<Long> getSuggestionNotifications(Long gId, int sId){
+        Connection con = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+        List<Long> uIds = new ArrayList<>();
+        try {
+            con = getConnection();
+            stmt = con.prepareStatement("SELECT * FROM " + Table.SUGGESTION_NOTIFICATIONS.getName() + " WHERE suggestion_id=? AND guild_id=?");
+            stmt.setInt(1, sId);
+            stmt.setLong(2, gId);
+            rs = stmt.executeQuery();
+            while(rs.next())
+                uIds.add(rs.getLong("user_id"));
+        }catch (SQLException ex){
+            ex.printStackTrace();
+        }finally {
+            DbUtils.closeQuietly(rs);
+            DbUtils.closeQuietly(stmt);
+            DbUtils.closeQuietly(con);
+        }
+        return uIds;
+    }
+    public static boolean setSuggestionNotification(Long gId, Long uId, int sId, boolean notify){
+        Connection con = null;
+        PreparedStatement stmt = null;
+        boolean success = false;
+        try{
+            con = getConnection();
+            if(notify)
+                stmt = con.prepareStatement("INSERT INTO " + Table.SUGGESTION_NOTIFICATIONS.getName() + " (user_id, suggestion_id, guild_id) VALUES (?, ?, ?)");
+            else
+                stmt = con.prepareStatement("DELETE FROM " + Table.SUGGESTION_NOTIFICATIONS.getName() + " WHERE user_id=? AND suggestion_id=? AND guild_id=?");
+            stmt.setLong(1, uId);
+            stmt.setInt(2, sId);
+            stmt.setLong(3, gId);
+            stmt.executeUpdate();
+            success = true;
+        }catch (SQLException ex){
             ex.printStackTrace();
         }finally {
             DbUtils.closeQuietly(stmt);

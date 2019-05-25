@@ -1,10 +1,13 @@
 package Scripts;
 
+import Main.BotMain;
 import Main.BotUtils;
 import Main.LocaleManager;
 import discord4j.core.object.VoiceState;
 import discord4j.core.object.entity.*;
 import discord4j.core.object.util.Image;
+import discord4j.core.object.util.Permission;
+import discord4j.core.object.util.PermissionSet;
 import discord4j.core.object.util.Snowflake;
 import discord4j.core.util.EntityUtil;
 import org.apache.commons.text.similarity.LevenshteinDistance;
@@ -12,10 +15,12 @@ import org.mariuszgromada.math.mxparser.Expression;
 import reactor.core.publisher.Mono;
 import reactor.util.annotation.Nullable;
 
+import java.awt.*;
 import java.text.DateFormatSymbols;
 import java.text.SimpleDateFormat;
 import java.time.Instant;
 import java.util.*;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -24,7 +29,30 @@ public class ScriptExecutor {
 
     public enum ScriptEvent {
         onMessage("onMessage"),
-        onJoin("onJoin");
+        onJoin("onJoin"),
+        onLeave("onLeave"),
+        onBan("onBan"),
+        onUnban("onUnban"),
+        onPin("onPin"),
+        onUnpin("onUnpin"),
+        onNick("onNick"),
+        onVoiceJoin("onVoiceJoin"),
+        onVoiceMove("onVoiceMove"),
+        onVoiceLeave("onVoiceLeave"),
+        onReactionAdded("onReactionAdded"),
+        onReactionRemoved("onReactionRemoved"),
+        onRoleAdded("onRoleAdded"),
+        onRoleRemoved("onRoleRemoved"),
+        onRoleCreated("onRoleCreated"),
+        onChannelCreated("onChannelCreated"),
+        onCategoryCreated("onCategoryCreated"),
+        onVoiceChannelCreated("onVoiceChannelCreated"),
+        onTextChannelCreated("onTextChannelCreated"),
+        onRoleDeleted("onRoleDeleted"),
+        onChannelDeleted("onChannelDeleted"),
+        onCategoryDeleted("onCategoryDeleted"),
+        onVoiceChannelDeleted("onVoiceChannelDeleted"),
+        onTextChannelDeleted("onTextChannelDeleted");
 
         private String event;
         ScriptEvent(String event){
@@ -56,7 +84,7 @@ public class ScriptExecutor {
                 .filter(x -> varName != null)
                 .filter(x -> args.size() == 3)
                 .flatMap(x -> BotUtils.getChannelFromArgument(g, args.get(0)).ofType(TextChannel.class)
-                        .flatMap(c -> c.getMessageById(Snowflake.of(Long.parseLong(args.get(1))))
+                        .flatMap(c -> c.getMessageById(Snowflake.of(args.get(1)))
                                 .flatMap(m -> m.edit(BotUtils.jsonToMessageEdit(args.get(2))))
                         )
                 )
@@ -66,32 +94,122 @@ public class ScriptExecutor {
                 .filter(x -> varName != null)
                 .filter(x -> args.size() == 2)
                 .flatMap(x -> BotUtils.getChannelFromArgument(g, args.get(0)).ofType(TextChannel.class)
-                        .flatMap(c -> c.getMessageById(Snowflake.of(Long.parseLong(args.get(1))))
+                        .flatMap(c -> c.getMessageById(Snowflake.of(args.get(1)))
                                 .flatMap(m -> m.delete("A script ran the delete command on this message."))
                         )
                 )
                 .flatMap(x -> Mono.just(true))
         );
-        actions.put("sendDM", (g, args, variables, varName) -> {return Mono.just(true);});
-        actions.put("giveRole", (g, args, variables, varName) -> {return Mono.just(true);});
-        actions.put("removeRole", (g, args, variables, varName) -> {return Mono.just(true);});
-        actions.put("setNickname", (g, args, variables, varName) -> {return Mono.just(true);});
-        actions.put("resetNickname", (g, args, variables, varName) -> {return Mono.just(true);});
-        actions.put("kick", (g, args, variables, varName) -> {return Mono.just(true);});
-        actions.put("ban", (g, args, variables, varName) -> {return Mono.just(true);});
-        actions.put("unban", (g, args, variables, varName) -> {return Mono.just(true);});
+        actions.put("sendDM", (g, args, variables, varName) -> Mono.just(g)
+                .filter(x -> args.size() == 2)
+                .flatMap(x -> BotUtils.getMemberFromArgument(g, args.get(0))
+                        .flatMap(m -> m.getPrivateChannel()
+                                .flatMap(c -> c.createMessage(BotUtils.jsonToMessage(args.get(1))))
+                        )
+                )
+                .flatMap(x -> Mono.just(true))
+        );
+        actions.put("giveRole", (g, args, variables, varName) -> Mono.just(g)
+                .filter(x -> args.size() == 2)
+                .flatMap(x -> BotUtils.getMemberFromArgument(g, args.get(0))
+                        .flatMap(m -> BotUtils.getRoleFromArgument(g, args.get(1))
+                                .flatMap(r -> m.addRole(r.getId(), "Role added by the giveRole function in a script"))
+                        )
+                )
+                .flatMap(x -> Mono.just(true))
+        );
+        actions.put("removeRole", (g, args, variables, varName) -> Mono.just(g)
+                .filter(x -> args.size() == 2)
+                .flatMap(x -> BotUtils.getMemberFromArgument(g, args.get(0))
+                        .flatMap(m -> BotUtils.getRoleFromArgument(g, args.get(1))
+                                .flatMap(r -> m.removeRole(r.getId(), "Role removed by the removeRole function in a script"))
+                        )
+                )
+                .flatMap(x -> Mono.just(true))
+        );
+        actions.put("setNickname", (g, args, variables, varName) -> Mono.just(g)
+                .filter(x -> args.size() == 2)
+                .flatMap(x -> BotUtils.getMemberFromArgument(g, args.get(0))
+                        .flatMap(m -> m.edit(gmes -> gmes.setNickname(args.get(1).length() > 32 ? args.get(1).substring(0, 32) : args.get(1))))
+                )
+                .flatMap(x -> Mono.just(true))
+        );
+        actions.put("resetNickname", (g, args, variables, varName) -> Mono.just(g)
+                .filter(x -> args.size() == 1)
+                .flatMap(x -> BotUtils.getMemberFromArgument(g, args.get(0))
+                        .flatMap(m -> m.edit(gmes -> gmes.setNickname(null)))
+                )
+                .flatMap(x -> Mono.just(true))
+        );
+        actions.put("kick", (g, args, variables, varName) -> Mono.just(g)
+                .filter(x -> args.size() == 1 || args.size() == 2)
+                .flatMap(x -> BotUtils.getMemberFromArgument(g, args.get(0))
+                        .flatMap(m -> m.kick(args.size() == 2 ? args.get(1) : null))
+                )
+                .flatMap(x -> Mono.just(true))
+        );
+        actions.put("ban", (g, args, variables, varName) -> Mono.just(g)
+                .filter(x -> args.size() == 1 || args.size() == 2)
+                .flatMap(x -> BotUtils.getUserFromArgument(args.get(0)))
+                .flatMap(x -> Mono.just(true))
+        );
+        actions.put("unban", (g, args, variables, varName) -> Mono.just(g)
+                .filter(x -> args.size() == 1 || args.size() == 2)
+                .flatMap(x -> BotUtils.getUserFromArgument(args.get(0))
+                        .flatMap(u -> g.unban(u.getId(), args.size() == 2 ? args.get(1) : null))
+                )
+                .flatMap(x -> Mono.just(true))
+        );
         actions.put("clearReactions", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> varName != null)
                 .filter(x -> args.size() == 2)
                 .flatMap(x -> BotUtils.getChannelFromArgument(g, args.get(0)).ofType(TextChannel.class)
-                        .flatMap(c -> c.getMessageById(Snowflake.of(Long.parseLong(args.get(1))))
+                        .flatMap(c -> c.getMessageById(Snowflake.of(args.get(1)))
                                 .flatMap(m -> m.removeAllReactions())
                         )
                 )
                 .flatMap(x -> Mono.just(true))
         );
-        actions.put("createRole", (g, args, variables, varName) -> {return Mono.just(true);});
-        actions.put("deleteRole", (g, args, variables, varName) -> {return Mono.just(true);});
+        actions.put("createRole", (g, args, variables, varName) -> Mono.just(g)
+                .flatMap(x -> g.createRole(rcs -> {
+                    if(args.size() > 0) rcs.setName(args.get(0));
+                    if(args.size() > 1) rcs.setColor(BotUtils.getColor(args.get(1), Color.BLACK));
+                    if(args.size() > 2) rcs.setHoist(Boolean.parseBoolean(args.get(2)));
+                    if(args.size() > 3) rcs.setMentionable(Boolean.parseBoolean(args.get(3)));
+                    if(args.size() > 4){
+                        List<Permission> perms = new ArrayList<>();
+                        if(args.size() == 5 && args.get(4).matches("^\\d+$")){
+                            rcs.setPermissions(PermissionSet.of(Long.parseLong(args.get(4))));
+                        }else {
+                            for (String s : args.subList(4, args.size())) {
+                                if (s.matches("^\\d+$")) {
+                                    for (Permission p : Permission.values())
+                                        if (p.getValue() == Long.parseLong(s)) {
+                                            perms.add(p);
+                                            break;
+                                        }
+                                } else
+                                    try {
+                                        perms.add(Permission.valueOf(s.toUpperCase()));
+                                    } catch (IllegalArgumentException ex) {
+                                        ex.printStackTrace();
+                                    }
+                            }
+                            rcs.setPermissions(PermissionSet.of(perms.toArray(new Permission[0])));
+                        }
+                    }
+                    rcs.setReason("Role created by the createRole function in a script");
+                }))
+                .filter(r -> varName != null)
+                .flatMap(r -> Mono.justOrEmpty(variables.put(varName, r.getId().asString())))
+                .flatMap(x -> Mono.just(true))
+        );
+        actions.put("deleteRole", (g, args, variables, varName) -> Mono.just(g)
+                .filter(x -> args.size() == 1)
+                .flatMap(x -> BotUtils.getRoleFromArgument(g, args.get(0)))
+                .flatMap(r -> r.delete("Deleted by the deleteRole function in a script"))
+                .flatMap(x -> Mono.just(true))
+        );
         actions.put("createTextChannel", (g, args, variables, varName) -> {return Mono.just(true);});
         actions.put("createVoiceChannel", (g, args, variables, varName) -> {return Mono.just(true);});
         actions.put("createCategory", (g, args, variables, varName) -> {return Mono.just(true);});
@@ -106,8 +224,20 @@ public class ScriptExecutor {
         actions.put("continueSong", (g, args, variables, varName) -> {return Mono.just(true);});
         actions.put("skipSong", (g, args, variables, varName) -> {return Mono.just(true);});
         actions.put("enqueueSong", (g, args, variables, varName) -> {return Mono.just(true);});
-        actions.put("pinMessage", (g, args, variables, varName) -> {return Mono.just(true);});
-        actions.put("unpinMessage", (g, args, variables, varName) -> {return Mono.just(true);});
+        actions.put("pinMessage", (g, args, variables, varName) -> Mono.just(g)
+                .filter(x -> args.size() == 2)
+                .flatMap(x -> BotUtils.getChannelFromArgument(g, args.get(0)).ofType(TextChannel.class))
+                .flatMap(c -> c.getMessageById(Snowflake.of(args.get(1))))
+                .flatMap(m -> m.pin())
+                .flatMap(x -> Mono.just(true))
+        );
+        actions.put("unpinMessage", (g, args, variables, varName) -> Mono.just(g)
+                .filter(x -> args.size() == 2)
+                .flatMap(x -> BotUtils.getChannelFromArgument(g, args.get(0)).ofType(TextChannel.class))
+                .flatMap(c -> c.getMessageById(Snowflake.of(args.get(1))))
+                .flatMap(m -> m.unpin())
+                .flatMap(x -> Mono.just(true))
+        );
 
 
 
@@ -178,11 +308,11 @@ public class ScriptExecutor {
         actions.put("continueIfMentions", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> args.size() == 3)
                 .flatMap(x -> BotUtils.getChannelFromArgument(g, args.get(0)).ofType(TextChannel.class)
-                        .flatMap(c -> c.getMessageById(Snowflake.of(Long.parseLong(args.get(1))))
+                        .flatMap(c -> c.getMessageById(Snowflake.of(args.get(1)))
                                 .flatMap(m -> {
                                     if(args.get(1).equals("everyone")) return Mono.just(m.mentionsEveryone());
                                     try {
-                                        Snowflake sf = Snowflake.of(Long.parseLong(args.get(2)));
+                                        Snowflake sf = Snowflake.of(args.get(2));
                                         return Mono.just(
                                                 m.getRoleMentionIds().contains(sf) ||
                                                 m.getUserMentionIds().contains(sf)
@@ -197,11 +327,11 @@ public class ScriptExecutor {
         actions.put("breakIfMentions", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> args.size() == 3)
                 .flatMap(x -> BotUtils.getChannelFromArgument(g, args.get(0)).ofType(TextChannel.class)
-                        .flatMap(c -> c.getMessageById(Snowflake.of(Long.parseLong(args.get(1))))
+                        .flatMap(c -> c.getMessageById(Snowflake.of(args.get(1)))
                                 .flatMap(m -> {
                                     if(args.get(1).equals("everyone")) return Mono.just(!m.mentionsEveryone());
                                     try {
-                                        Snowflake sf = Snowflake.of(Long.parseLong(args.get(2)));
+                                        Snowflake sf = Snowflake.of(args.get(2));
                                         return Mono.just(!(
                                                 m.getRoleMentionIds().contains(sf) ||
                                                 m.getUserMentionIds().contains(sf)
@@ -216,7 +346,7 @@ public class ScriptExecutor {
         actions.put("continueIfHasAttachment", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> args.size() == 2)
                 .flatMap(x -> BotUtils.getChannelFromArgument(g, args.get(0)).ofType(TextChannel.class)
-                        .flatMap(c -> c.getMessageById(Snowflake.of(Long.parseLong(args.get(1))))
+                        .flatMap(c -> c.getMessageById(Snowflake.of(args.get(1)))
                                 .flatMap(m -> Mono.just(!m.getAttachments().isEmpty()))
                         )
                 )
@@ -224,7 +354,7 @@ public class ScriptExecutor {
         actions.put("breakIfHasAttachment", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> args.size() == 2)
                 .flatMap(x -> BotUtils.getChannelFromArgument(g, args.get(0)).ofType(TextChannel.class)
-                        .flatMap(c -> c.getMessageById(Snowflake.of(Long.parseLong(args.get(1))))
+                        .flatMap(c -> c.getMessageById(Snowflake.of(args.get(1)))
                                 .flatMap(m -> Mono.just(m.getAttachments().isEmpty()))
                         )
                 )
@@ -232,7 +362,7 @@ public class ScriptExecutor {
         actions.put("continueIfHasEmbed", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> args.size() == 2)
                 .flatMap(x -> BotUtils.getChannelFromArgument(g, args.get(0)).ofType(TextChannel.class)
-                        .flatMap(c -> c.getMessageById(Snowflake.of(Long.parseLong(args.get(1))))
+                        .flatMap(c -> c.getMessageById(Snowflake.of(args.get(1)))
                                 .flatMap(m -> Mono.just(!m.getEmbeds().isEmpty()))
                         )
                 )
@@ -240,7 +370,7 @@ public class ScriptExecutor {
         actions.put("breakIfHasEmbed", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> args.size() == 2)
                 .flatMap(x -> BotUtils.getChannelFromArgument(g, args.get(0)).ofType(TextChannel.class)
-                        .flatMap(c -> c.getMessageById(Snowflake.of(Long.parseLong(args.get(1))))
+                        .flatMap(c -> c.getMessageById(Snowflake.of(args.get(1)))
                                 .flatMap(m -> Mono.just(m.getEmbeds().isEmpty()))
                         )
                 )
@@ -336,11 +466,11 @@ public class ScriptExecutor {
                 .filter(x -> varName != null)
                 .filter(x -> args.size() == 3)
                 .flatMap(x -> BotUtils.getChannelFromArgument(g, args.get(0)).ofType(TextChannel.class)
-                        .flatMap(c -> c.getMessageById(Snowflake.of(Long.parseLong(args.get(1))))
+                        .flatMap(c -> c.getMessageById(Snowflake.of(args.get(1)))
                                 .flatMap(m -> {
                                     if(args.get(1).equals("everyone")) return Mono.justOrEmpty(variables.put(varName, "" + m.mentionsEveryone()));
                                     try {
-                                        Snowflake sf = Snowflake.of(Long.parseLong(args.get(2)));
+                                        Snowflake sf = Snowflake.of(args.get(2));
                                         variables.put(varName, "" + (
                                                 m.getRoleMentionIds().contains(sf) ||
                                                 m.getUserMentionIds().contains(sf)
@@ -357,7 +487,7 @@ public class ScriptExecutor {
                 .filter(x -> varName != null)
                 .filter(x -> args.size() == 2)
                 .flatMap(x -> BotUtils.getChannelFromArgument(g, args.get(0)).ofType(TextChannel.class)
-                        .flatMap(c -> c.getMessageById(Snowflake.of(Long.parseLong(args.get(1))))
+                        .flatMap(c -> c.getMessageById(Snowflake.of(args.get(1)))
                                 .flatMap(m -> Mono.justOrEmpty(variables.put(varName, "" + !m.getAttachments().isEmpty())))
                         )
                 )
@@ -367,7 +497,7 @@ public class ScriptExecutor {
                 .filter(x -> varName != null)
                 .filter(x -> args.size() == 2)
                 .flatMap(x -> BotUtils.getChannelFromArgument(g, args.get(0)).ofType(TextChannel.class)
-                        .flatMap(c -> c.getMessageById(Snowflake.of(Long.parseLong(args.get(1))))
+                        .flatMap(c -> c.getMessageById(Snowflake.of(args.get(1)))
                                 .flatMap(m -> Mono.justOrEmpty(variables.put(varName, "" + !m.getEmbeds().isEmpty())))
                         )
                 )
@@ -397,6 +527,12 @@ public class ScriptExecutor {
                     return Mono.just(true);
                 })
         );
+        actions.put("isNicked", (g, args, variables, varName) -> Mono.just(true));
+        actions.put("getNickname", (g, args, variables, varName) -> Mono.just(true));
+        actions.put("hasDiscordPermission", (g, args, variables, varName) -> Mono.just(true));
+        actions.put("hasBotPermission", (g, args, variables, varName) -> Mono.just(true));
+
+
         actions.put("greaterThan", (g, args, variables, varName) -> Mono.just(true));
         actions.put("lessThan", (g, args, variables, varName) -> Mono.just(true));
 
@@ -576,128 +712,108 @@ public class ScriptExecutor {
                 .flatMap(x -> Mono.justOrEmpty(variables.put(varName, "" + !Boolean.logicalXor(Boolean.parseBoolean(args.get(0)), Boolean.parseBoolean(args.get(1))))))
                 .flatMap(x -> Mono.just(true))
         );
+
+        actions.put("ifTrue", (g, args, variables, varName) -> Mono.just(true));
+        actions.put("ifFalse", (g, args, variables, varName) -> Mono.just(false));
     }
 
-    public static void executeScript(Guild g, String script, Map<String, String> replace, @Nullable Instant timestamp){
-        Thread thread = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                replace.put("guildid", g.getId().asString());
-                replace.put("guildname", g.getName());
-                replace.put("guildicon", g.getIconUrl(Image.Format.PNG).orElse("No icon set"));
-                replace.put("botid", g.getClient().getSelfId().get().asString());
+    public static boolean executeScript(Guild g, String script, Map<String, String> replace, @Nullable Instant timestamp){
+        Thread thread = new Thread(()->{
+            replace.put("guildid", g.getId().asString());
+            replace.put("guildname", g.getName());
+            replace.put("guildicon", g.getIconUrl(Image.Format.PNG).orElse("No icon set"));
+            replace.put("botid", g.getClient().getSelfId().get().asString());
 
-                if(timestamp != null) {
-                    replace.put("timestamp", "" + timestamp.toEpochMilli());
-                    Matcher timestampMatcher = Pattern.compile("%(timestamp_([^%_]+)(?:_([^%]+))?)%").matcher(script);
-                    Date time = Date.from(timestamp);
-                    DateFormatSymbols dfs = DateFormatSymbols.getInstance(Locale.ENGLISH);
-                    try {dfs = DateFormatSymbols.getInstance(Locale.forLanguageTag(LocaleManager.getGuildLanguage(g.getId().asLong())));}catch (Exception ex){}
-                    while (timestampMatcher.find()) {
-                        try {
-                            SimpleDateFormat format = new SimpleDateFormat(timestampMatcher.group(2));
-                            format.setDateFormatSymbols(dfs);
-                            format.setTimeZone(TimeZone.getTimeZone(timestampMatcher.group(3) != null ? timestampMatcher.group(3) : "GMT"));
-                            replace.put(timestampMatcher.group(1), format.format(time));
-                        }catch (Exception ex){
-                            replace.put(timestampMatcher.group(1), "Error in pattern `" + timestampMatcher.group(2) + "`: " + ex.getMessage());
-                        }
+            if(timestamp != null) {
+                replace.put("timestamp", "" + timestamp.toEpochMilli());
+                Matcher timestampMatcher = Pattern.compile("%(timestamp_([^%_]+)(?:_([^%]+))?)%").matcher(script);
+                Date time = Date.from(timestamp);
+                DateFormatSymbols dfs = DateFormatSymbols.getInstance(Locale.ENGLISH);
+                try {dfs = DateFormatSymbols.getInstance(Locale.forLanguageTag(LocaleManager.getGuildLanguage(g.getId().asLong())));}catch (Exception ex){}
+                while (timestampMatcher.find()) {
+                    try {
+                        SimpleDateFormat format = new SimpleDateFormat(timestampMatcher.group(2));
+                        format.setDateFormatSymbols(dfs);
+                        format.setTimeZone(TimeZone.getTimeZone(timestampMatcher.group(3) != null ? timestampMatcher.group(3) : "GMT"));
+                        replace.put(timestampMatcher.group(1), format.format(time));
+                    }catch (Exception ex){
+                        replace.put(timestampMatcher.group(1), "Error in pattern `" + timestampMatcher.group(2) + "`: " + ex.getMessage());
                     }
                 }
+            }
 
-                String[] commands = script.split("\n");
-                int waited = 0;
-                for(String command : commands){
-                    while(command.startsWith(" ") || command.startsWith("\t")) command = command.substring(1);
-                    if(command.endsWith("\r")) command = command.substring(0, command.length() - 1);
-                    if(command.startsWith("//")) continue;
-                    List<String> args;
-                    Matcher matcher31 = Pattern.compile("([^(\\n]*)\\( *(\"(?:%[a-zA-Z]+%|\\d+)\") *, *(\"(?:%[a-zA-Z]+%|\\d+)\") *, *(\".*\") *\\) *$").matcher(command); // number, number, something
-                    Matcher matcher32 = Pattern.compile("([^(\\n]*)\\( *(\".*\") *, *(\"(?:%[a-zA-Z]+%|-?\\d+)\") *, *(\"(?:%[a-zA-Z]+%|-?\\d+)*\") *\\) *$").matcher(command); // something, number, number
-                    Matcher matcher33 = Pattern.compile("([^(\\n]*)\\( *(\"(?:%[a-zA-Z]%|\\d+)*\") *, *(\".*\") *, *(\".*\") *\\) *$").matcher(command); // number something something
-                    //Matcher matcher20 = Pattern.compile("([^(\\n]*)\\( *(\"\\d+\") *, *(\".*\") *\\)").matcher(command);
-                    Matcher matcher21 = Pattern.compile("([^(\\n]*)\\( *(\"(?:%[a-zA-Z]+%|\\d+)\") *, *(\".*\") *\\) *$").matcher(command); // number, something
-                    Matcher matcher22 = Pattern.compile("([^(\\n]*)\\( *(\".*\") *, *(\".*\") *\\) *$").matcher(command); // something, something
-                    //Matcher matcher10 = Pattern.compile("([^(\\n]*)\\( *(\"\\d+\")(?: +)?\\)").matcher(command);
-                    Matcher matcher11 = Pattern.compile("([^(\\n]*)\\( *(\"(?:%[a-zA-Z]+%|\\d+)\") *\\) *$").matcher(command); // number
-                    Matcher matcher12 = Pattern.compile("([^(\\n]*)\\( *(\".*\")(?: +)?\\) *$").matcher(command); // everything
-                    Matcher matcher0 = Pattern.compile("([^(\\n]*)\\( *\\) *$").matcher(command);
-                    if(matcher31.matches()){
-                        args = Arrays.asList(matcher31.group(2), matcher31.group(3), matcher31.group(4));
-                        command = matcher31.group(1).trim();
-                    }else if(matcher32.matches()){
-                        args = Arrays.asList(matcher32.group(2), matcher32.group(3), matcher32.group(4));
-                        command = matcher32.group(1).trim();
-                    }else if(matcher33.matches()){
-                        args = Arrays.asList(matcher33.group(2), matcher33.group(3), matcher33.group(4));
-                        command = matcher33.group(1).trim();
-                    }else /*if(matcher20.matches()){
-                        args = Arrays.asList(matcher20.group(2), matcher20.group(3));
-                        command = matcher20.group(1).trim();
-                    }else */if(matcher21.matches()){
-                        args = Arrays.asList(matcher21.group(2), matcher21.group(3));
-                        command = matcher21.group(1).trim();
-                    }else if(matcher22.matches()){
-                        args = Arrays.asList(matcher22.group(2), matcher22.group(3));
-                        command = matcher22.group(1).trim();
-                    }else /*if(matcher10.matches()){
-                        args = Arrays.asList(matcher10.group(2));
-                        command = matcher10.group(1).trim();
-                    }else */if(matcher11.matches()){
-                        args = Arrays.asList(matcher11.group(2));
-                        command = matcher11.group(1).trim();
-                    }else if(matcher12.matches()){
-                        args = Arrays.asList(matcher12.group(2));
-                        command = matcher12.group(1).trim();
-                    }else if(matcher0.matches()){
-                        args = Arrays.asList();
-                        command = matcher0.group(1).trim();
-                    }else{
-                        continue;
+            String[] commands = script.split("\n");
+            int waited = 0;
+            int requiredIndention = 0;
+            boolean execute = true;
+            for(String command : commands){
+                int indention = 0;
+                while(command.startsWith(" ") || command.startsWith("\t")){
+                    command = command.substring(1);
+                    indention++;
+                }
+                if(command.startsWith("//")) continue;
+                if(command.endsWith("\r")) command = command.substring(0, command.length() - 1);
+                Matcher m = Pattern.compile("^([^\\(]+)\\((.*)\\) *$").matcher(command);
+                if(!m.matches()) continue;
+                List<String> args = BotUtils.contentToParameters(m.group(2));
+                command = m.group(1).trim();
+                if(args == null) continue;
+
+                for(int i = 0; i < args.size(); i++){
+                    String arg = args.get(i);
+                    for(String toReplace : replace.keySet()){
+                        String newValue = replace.get(toReplace);
+                        if(newValue != null) arg = arg.replace("%" + toReplace + "%", newValue);
                     }
-                    for(int i = 0; i < args.size(); i++){
-                        String arg = args.get(i).replace("\\n", "\n");
-                        arg = arg.substring(1, arg.length() - 1);
-                        for(String toReplace : replace.keySet()){
-                            String newValue = replace.get(toReplace);
-                            if(newValue != null) arg = arg.replace("%" + toReplace + "%", newValue);
-                        }
-                        args.set(i, arg);
-                    }
-                    String variableName = null;
-                    if(command.contains("=")){
-                        variableName = command.split("=")[0];
-                        command = command.substring(variableName.length() + 1).trim();
-                        variableName = variableName.trim();
-                    }
-                    if(command.equals("wait")){
-                        if(waited < 60000 && args.size() == 1){
-                            try{
-                                int toWait = Integer.parseInt(args.get(0));
-                                if(waited + toWait > 60000){
-                                    toWait = 60000 - waited;
-                                }
-                                waited += toWait;
-                                synchronized (TimeUnit.MILLISECONDS){
-                                    TimeUnit.MILLISECONDS.wait(toWait);
-                                }
-                            }catch (Exception ex){}
-                        }
-                    }else {
-                        for (Map.Entry<String, Action> action : actions.entrySet()) {
-                            if (action.getKey().equalsIgnoreCase(command)) {
-                                for (int i = 0; i < args.size(); i++)
-                                    for (Map.Entry<String, String> variable : replace.entrySet())
-                                        args.set(i, args.get(i).replace("%" + variable.getKey() + "%", variable.getValue()));
-                                if (!action.getValue().execute(g, args, replace, variableName).defaultIfEmpty(true).block())
-                                    return;
+                    args.set(i, arg);
+                }
+                String variableName = null;
+                if(command.contains("=")){
+                    variableName = command.split("=")[0];
+                    command = command.substring(variableName.length() + 1).trim();
+                    variableName = variableName.trim();
+                }
+                if(command.equalsIgnoreCase("else") && (indention == requiredIndention-1)){
+                    execute = !execute;
+                    requiredIndention = indention + 1;
+                }else if(indention < requiredIndention){
+                    requiredIndention = indention;
+                    execute = true;
+                }
+                if(!execute) continue;
+                if(command.equalsIgnoreCase("wait")){
+                    if(waited < 60000 && args.size() == 1){
+                        try{
+                            int toWait = Integer.parseInt(args.get(0));
+                            if(waited + toWait > 60000){
+                                toWait = 60000 - waited;
                             }
+                            waited += toWait;
+                            synchronized (TimeUnit.MILLISECONDS){
+                                TimeUnit.MILLISECONDS.wait(toWait);
+                            }
+                        }catch (Exception ex){}
+                    }
+                }else{
+                    for (Map.Entry<String, Action> action : actions.entrySet()) {
+                        if (action.getKey().equalsIgnoreCase(command)) {
+                            for (int i = 0; i < args.size(); i++)
+                                for (Map.Entry<String, String> variable : replace.entrySet())
+                                    args.set(i, args.get(i).replace("%" + variable.getKey() + "%", variable.getValue()));
+                                boolean con = action.getValue().execute(g, args, replace, variableName).defaultIfEmpty(true).block();
+                                if(action.getKey().toLowerCase().startsWith("if")){
+                                    execute = con;
+                                    requiredIndention = indention + 1;
+                                }else if(!con)
+                                    return;
                         }
                     }
                 }
             }
         });
         thread.start();
+        return true;
     }
 
     public static void addMemberVariables(Map<String, String> replace, Member m){

@@ -30,12 +30,17 @@
         <dependency>
             <groupId>com.discord4j</groupId>
             <artifactId>discord4j-core</artifactId>
-            <version>3.0.3</version>
+            <version>3.0.5</version>
+        </dependency>
+        <dependency>
+            <groupId>com.discord4j</groupId>
+            <artifactId>discord4j-voice</artifactId>
+            <version>3.0.5</version>
         </dependency>
         <dependency>
             <groupId>mysql</groupId>
             <artifactId>mysql-connector-java</artifactId>
-            <version>8.0.15</version>
+            <version>8.0.16</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
@@ -45,7 +50,7 @@
         <dependency>
             <groupId>org.jsoup</groupId>
             <artifactId>jsoup</artifactId>
-            <version>1.11.3</version>
+            <version>1.12.1</version>
         </dependency>
         <dependency>
             <groupId>org.mariuszgromada.math</groupId>
@@ -55,7 +60,7 @@
         <dependency>
             <groupId>com.sedmelluq</groupId>
             <artifactId>lavaplayer</artifactId>
-            <version>1.3.13</version>
+            <version>1.3.17</version>
         </dependency>
         <dependency>
             <groupId>org.apache.commons</groupId>

@@ -3,7 +3,9 @@ package Main;
 import DataManager.DataManager;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import discord4j.core.object.entity.Guild;
 import discord4j.core.spec.MessageCreateSpec;
+import reactor.util.annotation.Nullable;
 
 import java.awt.*;
 import java.util.*;
@@ -61,9 +63,12 @@ public class LocaleManager {
     }
 
     public static String getGuildLanguage(Long gId){
-        String lang = "en";
-        try{lang = DataManager.getGuild(gId).getLanguage();}catch(Exception ex){}
-        return lang;
+        return DataManager.getGuild(gId).getLanguage();
+    }
+
+    public static String getGuildLanguage(@Nullable Guild g){
+        if(g != null) return getGuildLanguage(g.getId().asLong());
+        else return "en";
     }
 
     public static Map<String, String> getAvailableLanguages(){
