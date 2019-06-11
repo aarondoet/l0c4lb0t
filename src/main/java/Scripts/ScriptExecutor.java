@@ -829,12 +829,12 @@ public class ScriptExecutor {
         replace.put("channelmention", c.getMention());
         replace.put("channelname", c.getName());
         replace.put("channeltype", "" + c.getType().getValue());
-        if(c instanceof TextChannel){
-            TextChannel tc = (TextChannel)c;
+        if(c instanceof GuildMessageChannel){
+            GuildMessageChannel tc = (GuildMessageChannel)c;
             replace.put("channeltopic", tc.getTopic().orElse(""));
             replace.put("categoryid", tc.getCategoryId().orElse(Snowflake.of(0L)).asString());
             replace.put("nsfw", "" + tc.isNsfw());
-            replace.put("slowmode", "" + tc.getRateLimitPerUser());
+            if(c instanceof TextChannel) replace.put("slowmode", "" + ((TextChannel)tc).getRateLimitPerUser());
         }else if(c instanceof VoiceChannel){
             VoiceChannel vc = (VoiceChannel)c;
             replace.put("categoryid", vc.getCategoryId().orElse(Snowflake.of(0L)).asString());

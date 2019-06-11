@@ -7,10 +7,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import discord4j.core.DiscordClient;
 import discord4j.core.DiscordClientBuilder;
+import discord4j.core.event.domain.message.MessageCreateEvent;
 import discord4j.core.object.Embed;
 import discord4j.core.object.entity.*;
 import discord4j.core.object.reaction.ReactionEmoji;
 import discord4j.core.object.util.Snowflake;
+import discord4j.core.spec.EmbedCreateSpec;
 import discord4j.core.spec.MessageCreateSpec;
 import discord4j.core.spec.MessageEditSpec;
 import discord4j.core.util.EntityUtil;
@@ -21,6 +23,7 @@ import java.awt.*;
 import java.time.Instant;
 import java.util.*;
 import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -46,6 +49,7 @@ public class BotUtils {
      * The main color of the bot
      */
     public static final Color botColor = new Color(124, 124, 255);
+    public static User l0c4lh057 = null;
 
     public static final ReactionEmoji arrowLeft = ReactionEmoji.unicode("\u2B05");
     public static final ReactionEmoji arrowRight = ReactionEmoji.unicode("\u27A1");
@@ -316,7 +320,7 @@ public class BotUtils {
                         if (message.has("footer"))
                             ecs.setFooter(message.get("footer").asText(), message.has("footerIcon") ? message.get("footerIcon").asText() : null);
                         if (message.has("author"))
-                            ecs.setAuthor(message.get("author").asText(), message.has("footerUrl") ? message.get("footerUrl").asText() : null, message.has("footerIcon") ? message.get("footerIcon").asText() : null);
+                            ecs.setAuthor(message.get("author").asText(), message.has("authorUrl") ? message.get("authorUrl").asText() : null, message.has("authorIcon") ? message.get("authorIcon").asText() : null);
                         if (message.has("image")) ecs.setImage(message.get("image").asText());
                         if (message.has("thumbnail")) ecs.setThumbnail(message.get("thumbnail").asText());
                         if (message.has("url") && message.has("title")) ecs.setUrl(message.get("url").asText());
@@ -344,15 +348,16 @@ public class BotUtils {
      * @return The {@link Role}
      */
     public static Mono<Role> getRoleFromArgument(Guild guild, String role){
-        /*if(Pattern.matches("\\d+", role))
-            return g.getRoleById(Snowflake.of(Long.parseLong(role))).onErrorResume(x -> Mono.empty());
-        else{
-            Matcher m = Pattern.compile("\\<@&(\\d+)\\>").matcher(role);
-            if(m.matches())
-                return g.getRoleById(Snowflake.of(Long.parseLong(m.group(1)))).onErrorResume(x -> Mono.empty());
-        }
-        return Mono.empty();*/
         return guild.getRoles().filter(r -> r.getId().asString().equals(role) || r.getMention().equals(role) || r.getName().equals(role)).next();
+    }
+    /**
+     * Gets a {@link Role} by a {@link String}
+     * @param guild The {@link Mono}<{@link Guild}> the {@link Role} is in
+     * @param role  The {@link String} representation of the {@link Role}
+     * @return The {@link Role}
+     */
+    public static Mono<Role> getRoleFromArgument(Mono<Guild> guild, String role){
+        return guild.flatMap(g -> g.getRoles().filter(r -> r.getId().asString().equals(role) || r.getMention().equals(role) || r.getName().equals(role)).next());
     }
 
     /**
@@ -362,15 +367,16 @@ public class BotUtils {
      * @return The {@link Member}
      */
     public static Mono<Member> getMemberFromArgument(Guild guild, String member){
-        /*if(Pattern.matches("\\d+", member))
-            return g.getMemberById(Snowflake.of(Long.parseLong(member))).onErrorResume(x -> Mono.empty());
-        else{
-            Matcher m = Pattern.compile("\\<@\\!?(\\d+)\\>").matcher(member);
-            if(m.matches())
-                return g.getMemberById(Snowflake.of(Long.parseLong(m.group(1)))).onErrorResume(x -> Mono.empty());
-        }
-        return Mono.empty();*/
         return guild.getMembers().filter(m -> m.getId().asString().equals(member) || ("<@" + m.getId().asString() + ">").equals(member) || ("<@!" + m.getId().asString() + ">").equals(member) || (m.getUsername() + "#" + m.getDiscriminator()).equals(member)).next();
+    }
+    /**
+     * Gets a {@link Member} by a {@link String}
+     * @param guild  The {@link Mono}<{@link Guild}> the {@link Member} is in
+     * @param member The {@link String} representation of the {@link Member}
+     * @return The {@link Member}
+     */
+    public static Mono<Member> getMemberFromArgument(Mono<Guild> guild, String member){
+        return guild.flatMap(g -> g.getMembers().filter(m -> m.getId().asString().equals(member) || ("<@" + m.getId().asString() + ">").equals(member) || ("<@!" + m.getId().asString() + ">").equals(member) || (m.getUsername() + "#" + m.getDiscriminator()).equals(member)).next());
     }
 
     /**
@@ -380,13 +386,16 @@ public class BotUtils {
      * @return The {@link GuildChannel}
      */
     public static Mono<GuildChannel> getChannelFromArgument(Guild guild, String channel){
-        /*Matcher m = Pattern.compile("^\\<#(\\d+)\\>$").matcher(channel);
-        if(m.matches())
-            return guild.getChannelById(Snowflake.of(Long.parseLong(m.group(1)))).onErrorResume(x -> Mono.empty())
-                    .switchIfEmpty(guild.getChannels().filter(c -> c.getName().equals(channel)).next());
-        return guild.getChannelById(Snowflake.of(Long.parseLong(channel))).onErrorResume(x -> Mono.empty())
-                .switchIfEmpty(guild.getChannels().filter(c -> c.getName().equals(channel)).next());*/
         return guild.getChannels().filter(c -> c.getId().asString().equals(channel) || c.getMention().equals(channel) || c.getName().equals(channel)).next();
+    }
+    /**
+     * Gets a {@link GuildChannel} by a {@link String}
+     * @param guild   The {@link Mono}<{@link Guild}> the {@link GuildChannel} is in
+     * @param channel The {@link String} representation of the {@link GuildChannel}
+     * @return The {@link GuildChannel}
+     */
+    public static Mono<GuildChannel> getChannelFromArgument(Mono<Guild> guild, String channel){
+        return guild.flatMap(g -> g.getChannels().filter(c -> c.getId().asString().equals(channel) || c.getMention().equals(channel) || c.getName().equals(channel)).next());
     }
 
     /**
@@ -395,14 +404,6 @@ public class BotUtils {
      * @return The {@link User}
      */
     public static Mono<User> getUserFromArgument(String user){
-        /*if(Pattern.matches("\\d+", user))
-            return BotMain.client.getUserById(Snowflake.of(Long.parseLong(user))).onErrorResume(x -> Mono.empty());
-        else{
-            Matcher m = Pattern.compile("\\<@\\!?(\\d+)\\>").matcher(user);
-            if(m.matches())
-                return BotMain.client.getUserById(Snowflake.of(Long.parseLong(m.group(1)))).onErrorResume(x -> Mono.empty());
-        }
-        return Mono.empty();*/
         return BotMain.client.getUsers().filter(u -> u.getId().asString().equals(user) || ("<@" + u.getId().asString() + ">").equals(user) || ("<@!" + u.getId().asString() + ">").equals(user) || (u.getUsername() + "#" + u.getDiscriminator()).equals(user)).next()
                 .switchIfEmpty(Mono.just(user)
                         .flatMap(u -> {
@@ -428,15 +429,20 @@ public class BotUtils {
     }
 
     /**
-     * Sends a {@link Message} to the given {@link TextChannel} that shows the usage of the {@link Command}
-     * @param channel The {@link TextChannel}
+     * Sends a {@link Message} to the given {@link MessageChannel} that shows the usage of the {@link Command}
+     * @param channel The {@link MessageChannel}
      * @param cmd     The command
      * @param pref    The prefix of the guild
      * @param lang    The language of the guild
      */
-    public static void sendHelpMessage(TextChannel channel, String cmd, String pref, String lang){
-        //channel.createMessage(LocaleManager.getLanguageMessage(lang, "commands." + cmd + ".help", pref)).subscribe();
-        channel.createMessage("Error in command " + cmd);
+    public static void sendHelpMessage(MessageChannel channel, String cmd, String pref, String lang){
+        channel.createMessage(mcs -> mcs
+                .setEmbed(ecs -> ecs
+                        .setDescription(LocaleManager.getLanguageString(lang, "commands." + cmd + ".help", pref))
+                        .setTitle(LocaleManager.getLanguageString(lang, "commandErrorTitle", cmd))
+                        .setColor(new Color(16711680))
+                )
+        ).subscribe();
     }
 
     /**
@@ -585,15 +591,28 @@ public class BotUtils {
      * @param message The message you want to check
      * @return {@code true} if the message is a suggestion message, otherwise {@code false}
      */
-    public static boolean isSuggestionMessage(Message message){
+    public static boolean isBotSuggestionMessage(Message message){
         if(message.getAuthor().isEmpty()) return false;
         if(message.getAuthor().get().getId().asLong() != message.getClient().getSelfId().get().asLong()) return false;
         if(message.getEmbeds().size() != 1) return false;
         Embed embed = message.getEmbeds().get(0);
-        if(!embed.getTitle().orElse("").equals("Suggestions")) return false;
+        if(!embed.getTitle().orElse("").equals("Bot Suggestions")) return false;
         if(embed.getFooter().isEmpty()) return false;
         if(!embed.getFooter().get().getText().matches("^Page \\d+/\\d+$")) return false;
         return true;
+    }
+
+    public static int getSuggestionPageNumner(Message message){
+        if(message.getAuthor().isEmpty()) return -1;
+        if(message.getAuthor().get().getId().asLong() != message.getClient().getSelfId().get().asLong()) return -1;
+        if(message.getEmbeds().size() != 1) return -1;
+        Embed embed = message.getEmbeds().get(0);
+        if(!embed.getTitle().orElse("").equals("Suggestions")) return -1;
+        if(embed.getFooter().isEmpty()) return -1;
+        Matcher m = Pattern.compile("Page (\\d+)/\\d+").matcher(embed.getFooter().get().getText());
+        if(m.matches())
+            return Integer.parseInt(m.group(1));
+        return -1;
     }
 
     /**
@@ -628,6 +647,18 @@ public class BotUtils {
         cmds.forEach(cmd -> customCommands.put(cmd, "`{0}" + cmd + "`"));
         if(customCommands.size() > 0) pages.put(LocaleManager.getLanguageString(lang, "help.customCommands"), customCommands);
         return pages;
+    }
+
+    /**
+     * Checks if the channel is an NSFW channel. If it is marked as NSFW it return true, otherwise it sends a message to the channel, that an NSFW channel is required and false is returned.
+     * @param channel The channel you want to check
+     * @return Whether the channel is marked as NSFW or not
+     */
+    public static boolean checkChannelForNSFW(GuildMessageChannel channel){
+        if(channel.isNsfw())
+            return true;
+        channel.createMessage("only available in nsfw channels").subscribe();
+        return false;
     }
 
 }

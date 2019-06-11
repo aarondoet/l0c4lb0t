@@ -31,11 +31,13 @@ public class LocaleManager {
     }
 
     public static String getLanguageString(String lang, String key, String... args){
-        if(!languages.has(lang)) lang = "en";
-        JsonNode curr = languages.get(lang);
-        for(String k : key.split("\\."))
-            curr = curr.get(k);
-        return BotUtils.formatString(curr.asText(), args);
+        JsonNode el = getLanguageElement(lang, key);
+        if(el.isArray()){
+            List<String> lines = new ArrayList<>();
+            el.elements().forEachRemaining(line -> lines.add(BotUtils.formatString(line.asText(), args)));
+            return String.join("\n", lines);
+        }
+        return BotUtils.formatString(el.asText(), args);
     }
     public static JsonNode getLanguageElement(String lang, String key){
         if(!languages.has(lang)) lang = "en";

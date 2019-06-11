@@ -2,8 +2,13 @@ package Main;
 
 import DataManager.*;
 import DataManager.DataManager.*;
+import Media.NSFWUtils;
+import Media.SFWUtils;
 import Music.MusicManager;
+import Patreon.PatreonManager;
+import Patreon.Patron;
 import com.fasterxml.jackson.databind.JsonNode;
+import discord4j.core.event.domain.message.MessageCreateEvent;
 import discord4j.core.object.entity.*;
 import discord4j.core.object.reaction.ReactionEmoji;
 import discord4j.core.object.util.Permission;
@@ -95,7 +100,7 @@ public class BotCommands {
                     if(e.getMember().get().getId().asLong() != e.getGuild().block().getOwnerId().asLong()) return BotUtils.sendNoPermissionsMessage(c);
                     if(args.size() != 1)
                         return Mono.just(false);
-                    if(args.get(0).equals("get")) {
+                    if(args.get(0).equalsIgnoreCase("get")) {
                         try {
                             String token = DataManager.getGuild(e.getGuildId().get().asLong()).getToken();
                             e.getMessage().getAuthorAsMember().block().getPrivateChannel().block().createMessage("Your token for the website is `" + token + "`").subscribe();
@@ -105,7 +110,7 @@ public class BotCommands {
                             BotUtils.sendErrorMessage(c);
                         }
                         return Mono.just(true);
-                    }else if(args.get(0).equals("new")){
+                    }else if(args.get(0).equalsIgnoreCase("new") || args.get(0).equalsIgnoreCase("renew")){
                         String newToken = DataManager.renewToken(e.getGuildId().get().asLong());
                         if(newToken.length() == 0)
                             BotUtils.sendErrorMessage(c);
@@ -414,7 +419,7 @@ public class BotCommands {
                         }
                     }else if(args.size() == 2){
                         if(args.get(0).equalsIgnoreCase("add")){
-                            TextChannel bc = BotUtils.getChannelFromArgument(e.getGuild().block(), args.get(1)).ofType(TextChannel.class).block();
+                            GuildMessageChannel bc = BotUtils.getChannelFromArgument(e.getGuild(), args.get(1)).ofType(GuildMessageChannel.class).block();
                             if(bc == null) return Mono.just(false);
                             List<Long> blocked = DataManager.getBlockedChannels(e.getGuildId().get().asLong());
                             if(blocked.contains(bc.getId().asLong()))
@@ -426,7 +431,7 @@ public class BotCommands {
                             return Mono.just(true);
                         }else if(args.get(0).equalsIgnoreCase("remove")){
                             List<Long> blocked = DataManager.getBlockedChannels(e.getGuildId().get().asLong());
-                            TextChannel bc = BotUtils.getChannelFromArgument(e.getGuild().block(), args.get(1)).ofType(TextChannel.class).block();
+                            GuildMessageChannel bc = BotUtils.getChannelFromArgument(e.getGuild(), args.get(1)).ofType(GuildMessageChannel.class).block();
                             if(bc == null) return Mono.just(false);
                             if(!blocked.contains(bc.getId().asLong()))
                                 c.createMessage("not blocked").subscribe();
@@ -444,7 +449,32 @@ public class BotCommands {
                 .flatMap(c -> {
                     if(!PermissionManager.hasPermission(e.getGuild().block(), e.getMember().get(), "unknowncommandmessage", false, Permission.MANAGE_MESSAGES))
                         return BotUtils.sendNoPermissionsMessage(c);
-                    return Mono.just(true);
+                    if(args.size() == 1){
+                        if(args.get(0).equalsIgnoreCase("get")){
+                            String ucm = DataManager.getGuild(e.getGuildId().get().asLong()).getUnknownCommandMessage();
+                            if(ucm.length() == 0)
+                                c.createMessage("no ucm").subscribe();
+                            else
+                                c.createMessage("ucm: " + ucm).subscribe();
+                            return Mono.just(true);
+                        }else if(args.get(0).equalsIgnoreCase("remove") || args.get(0).equalsIgnoreCase("delete")){
+                            if(DataManager.setGuild(e.getGuildId().get().asLong(), "unknown_command_message", "", JDBCType.VARCHAR))
+                                c.createMessage("removed ucm").subscribe();
+                            else
+                                return BotUtils.sendErrorMessage(c);
+                            return Mono.just(true);
+                        }
+                    }else if(args.size() > 1){
+                        if(args.get(0).equalsIgnoreCase("set")){
+                            String newUcm = String.join(" ", args.subList(1, args.size()));
+                            if(DataManager.setGuild(e.getGuildId().get().asLong(), "unknown_command_message", newUcm, JDBCType.VARCHAR))
+                                c.createMessage("Changed ucm to " + newUcm).subscribe();
+                            else
+                                return BotUtils.sendErrorMessage(c);
+                            return Mono.just(true);
+                        }
+                    }
+                    return Mono.just(false);
                 })
         );
         commands.put(new String[]{"joinrole", "jr"}, (e, prefix, args, lang) -> Mono.just(true));
@@ -461,7 +491,20 @@ public class BotCommands {
                 .flatMap(c -> {
                     AtomicInteger pageNbr = new AtomicInteger(0);
                     if(args.size() > 0) try{
-                        pageNbr.set(Integer.parseInt(args.get(0)) - 1);
+                        if(args.get(0).matches("^\\d+$"))
+                            pageNbr.set(Integer.parseInt(args.get(0)) - 1);
+                        else{
+                            if(LocaleManager.getLanguageElement(lang, "commands").has(args.get(0))) {
+                                BotUtils.sendHelpMessage(c, args.get(0), prefix, lang);
+                                return Mono.just(true);
+                            }
+                            for(String[] aliases : commands.keySet())
+                                for(String alias : aliases)
+                                    if(alias.equalsIgnoreCase(args.get(0))){
+                                        BotUtils.sendHelpMessage(c, aliases[0], prefix, lang);
+                                        return Mono.just(true);
+                                    }
+                        }
                     }catch (NumberFormatException ex){}
                     Map<String, Map<String, String>> pages = BotUtils.getHelpPages(e.getGuild().block());
                     pageNbr.set(BotUtils.clamp(pageNbr.get(), 0, pages.size() - 1));
@@ -507,16 +550,34 @@ public class BotCommands {
         commands.put(new String[]{"reactionroles", "reactionrole", "rr"}, (e, prefix, args, lang) -> Mono.just(true));
         commands.put(new String[]{"ban"}, (e, prefix, args, lang) -> Mono.just(true));
         commands.put(new String[]{"kick"}, (e, prefix, args, lang) -> Mono.just(true));
-        commands.put(new String[]{"anticaps", "nocaps"}, (e, prefix, args, lang) -> Mono.just(true));
+        commands.put(new String[]{"anticaps", "nocaps"}, (e, prefix, args, lang) -> e.getMessage().getChannel()
+                .flatMap(c -> {
+                    if(!PermissionManager.hasPermission(e.getGuild().block(), e.getMember().get(), "anticaps", false, Permission.MANAGE_MESSAGES))
+                        return BotUtils.sendNoPermissionsMessage(c);
+                    if(args.size() == 1){
+
+                    }else if(args.size() == 2){
+
+                    }else if(args.size() > 2){
+
+                    }
+                    return Mono.just(false);
+                })
+        );
 
         /* FUN */
 
         commands.put(new String[]{"minesweeper"}, (e, prefix, args, lang) -> Mono.just(true));
         commands.put(new String[]{"randomnumber", "rn"}, (e, prefix, args, lang) -> Mono.just(true));
         commands.put(new String[]{"remind"}, (e, prefix, args, lang) -> Mono.just(true));
-        commands.put(new String[]{"cat"}, (e, prefix, args, lang) -> Mono.just(true));
-        commands.put(new String[]{"dog"}, (e, prefix, args, lang) -> Mono.just(true));
-        commands.put(new String[]{"pussy"}, (e, prefix, args, lang) -> Mono.just(true));
+        commands.put(new String[]{"cat"}, (e, prefix, args, lang) -> e.getMessage().getChannel()
+                .flatMap(c -> c.createMessage(SFWUtils.getCat()))
+                .flatMap(x -> Mono.just(true))
+        );
+        commands.put(new String[]{"dog", "doggo", "goodboi"}, (e, prefix, args, lang) -> e.getMessage().getChannel()
+                .flatMap(c -> c.createMessage(SFWUtils.getDog()))
+                .flatMap(x -> Mono.just(true))
+        );
 
         /* MUSIC COMMANDS */
 
@@ -594,7 +655,7 @@ public class BotCommands {
                         List<SQLBotSuggestion> suggestions = DataManager.getBotSuggestions(pageNumber.get(), itemsPerPage);
                         String s = suggestions.stream().map(suggestion -> suggestion.getStatus().getEmoji().asUnicodeEmoji().get().getRaw() + " #" + suggestion.getId() + ": " + suggestion.getTitle()).collect(Collectors.joining("\n"));
                         c.createEmbed(ecs -> ecs
-                                .setTitle("Suggestions")
+                                .setTitle("Bot Suggestions")
                                 .setDescription(s)
                                 .setFooter("Page " + pageNumber.get() + "/" + maxPageNumber, null)
                         ).flatMap(m -> Flux.fromIterable(new ArrayList<>(Arrays.asList(BotUtils.arrowLeft, BotUtils.arrowRight)))
@@ -651,7 +712,7 @@ public class BotCommands {
                         if(suggestionId > -1) {
                             DataManager.setBotSuggestionNotification(e.getMessage().getAuthor().get().getId().asLong(), suggestionId, true);
                             c.createMessage("created suggestion with id " + suggestionId).subscribe();
-                            e.getClient().getChannelById(Snowflake.of(551801738223419392L)).ofType(TextChannel.class).flatMap(tc -> tc.createEmbed(ecs -> ecs
+                            e.getClient().getChannelById(Snowflake.of(551801738223419392L)).ofType(GuildMessageChannel.class).flatMap(tc -> tc.createEmbed(ecs -> ecs
                                     .setTitle("New Suggestion #" + suggestionId)
                                     .addField(title, content, false)
                                     .setAuthor(e.getMessage().getAuthor().get().getUsername() + "#" + e.getMessage().getAuthor().get().getDiscriminator(), null, e.getMessage().getAuthor().get().getAvatarUrl())
@@ -791,7 +852,7 @@ public class BotCommands {
                         if(suggestionId > -1) {
                             DataManager.setSuggestionNotification(e.getGuildId().get().asLong(), e.getMessage().getAuthor().get().getId().asLong(), suggestionId, true);
                             c.createMessage("created suggestion with id " + suggestionId).subscribe();
-                            e.getClient().getChannelById(Snowflake.of(DataManager.getGuild(e.getGuildId().get().asLong()).getSuggestionChannelId())).ofType(TextChannel.class).flatMap(tc -> tc.createEmbed(ecs -> ecs
+                            e.getClient().getChannelById(Snowflake.of(DataManager.getGuild(e.getGuildId().get().asLong()).getSuggestionChannelId())).ofType(GuildMessageChannel.class).flatMap(tc -> tc.createEmbed(ecs -> ecs
                                     .setTitle("New Suggestion #" + suggestionId)
                                     .addField(title, content, false)
                                     .setAuthor(e.getMessage().getAuthor().get().getUsername() + "#" + e.getMessage().getAuthor().get().getDiscriminator(), null, e.getMessage().getAuthor().get().getAvatarUrl())
@@ -849,6 +910,81 @@ public class BotCommands {
                             }
                         }catch (NumberFormatException ex){}
                         return Mono.just(false);
+                    }
+                    return Mono.just(false);
+                })
+        );
+
+        /* NSFW */
+
+        commands.put(new String[]{"boobs", "boob"}, (e, prefix, args, lang) -> e.getMessage().getChannel().ofType(GuildMessageChannel.class)
+                .filter(c -> BotUtils.checkChannelForNSFW(c))
+                .flatMap(c -> c.createMessage(NSFWUtils.getBoobs()))
+                .flatMap(x -> Mono.just(true))
+        );
+        commands.put(new String[]{"ass", "arse"}, (e, prefix, args, lang) -> e.getMessage().getChannel()
+                .flatMap(c -> c.createMessage(NSFWUtils.getAss()))
+                .flatMap(x -> Mono.just(true))
+        );
+        commands.put(new String[]{"asian"}, (e, prefix, args, lang) -> e.getMessage().getChannel()
+                .flatMap(c -> c.createMessage(NSFWUtils.getAsian()))
+                .flatMap(x -> Mono.just(true))
+        );
+        commands.put(new String[]{"neko", "nekos"}, (e, prefix, args, lang) -> e.getMessage().getChannel()
+                .flatMap(c -> c.createMessage(NSFWUtils.getNeko()))
+                .flatMap(x -> Mono.just(true))
+        );
+
+        commands.put(new String[]{"pussy"}, (e, prefix, args, lang) -> e.getMessage().getChannel().ofType(GuildMessageChannel.class)
+                .flatMap(c -> c.createMessage(SFWUtils.getCat()))
+                .flatMap(x -> Mono.just(true))
+        );
+        commands.put(new String[]{"cock"}, (e, prefix, args, lang) -> e.getMessage().getChannel().ofType(GuildMessageChannel.class)
+                .filter(c -> BotUtils.checkChannelForNSFW(c))
+                .flatMap(c -> c.createMessage(SFWUtils.getCock()))
+                .flatMap(x -> Mono.just(true))
+        );
+
+        commands.put(new String[]{"backup", "backups"}, (e, prefix, args, lang) -> e.getMessage().getChannel()
+                .filter(c -> args.size() > 0)
+                .flatMap(c -> {
+                    if(args.size() == 2 && (args.get(0).equalsIgnoreCase("auutomated") || args.get(0).equalsIgnoreCase("automation") || args.get(0).equalsIgnoreCase("automate") || args.get(0).equalsIgnoreCase("automatic"))) {
+                        if(PatreonManager.isPatronGuild(e.getGuildId().get().asLong())){
+                            if(args.get(1).equalsIgnoreCase("enable")){
+                                // enable
+                            }else if(args.get(1).equalsIgnoreCase("disable")){
+                                // disable
+                            }else if(args.get(1).equalsIgnoreCase("get")){
+                                // tell whether is is enabled or not
+                            }
+                        }else{
+                            // can't use automated backups
+                        }
+                    }else if(args.size() > 1) {
+                        if (args.get(0).equalsIgnoreCase("create")) {
+                            String bId = String.join(" ", args.subList(1, args.size()));
+                            if(DataManager.guildBackupExists(e.getGuildId().get().asLong(), bId)){
+                                // already exists
+                                return Mono.just(true);
+                            }
+                            boolean isPatronGuild = PatreonManager.isPatronGuild(e.getGuildId().get().asLong());
+                            int backupCount = DataManager.getGuildBackupCount(e.getGuildId().get().asLong(), false);
+                            if(backupCount > 2 && !isPatronGuild){
+                                // max 3 non patreon backups
+                                return Mono.just(true);
+                            }else if(backupCount > 14){
+                                // max 15 patreon backups
+                                return Mono.just(true);
+                            }
+                            if(!DataManager.createGuildBackup(e.getGuild().block(), args.get(1), false))
+                                return BotUtils.sendErrorMessage(c);
+                            // backup created
+                            return Mono.just(true);
+                        }else if (args.get(0).equalsIgnoreCase("restore")) {
+                            DataManager.restoreGuildBackup(e.getGuild().block(), args.get(1));
+                        }else if(args.get(0).equalsIgnoreCase("info") || args.get(0).equalsIgnoreCase("information")){
+
+                        }
                     }
                     return Mono.just(false);
                 })

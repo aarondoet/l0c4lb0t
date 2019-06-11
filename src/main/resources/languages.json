@@ -8,9 +8,9 @@
             "customCommands": "Custom Commands",
             "pages": {
                 "General": {
-                    "help": "`{0}help [page]` - sends the help message",
-                    "about": "`{0}about` - sends some information about this bot (alias: `l0c4lb0t`)",
-                    "stats": "`{0}stats` - sends some stats about this bot"
+                    "help": "`{0}help [page|command]` - send the help message",
+                    "about": "`{0}about` - send some information about this bot (alias: `l0c4lb0t`)",
+                    "stats": "`{0}stats` - send some stats about this bot"
                 },
                 "Moderation": {
                     "resetnicks": "`{0}resetnicks` - reset the nicknames of everyone without the \"keepNickname\" permission",
@@ -22,36 +22,42 @@
                     "invites": "`{0}invites` - manage messages that contain invites",
                     "joinmessage": "`{0}joinmessage` - send a welcome message when a user joins",
                     "leavemessage": "`{0}leavemessage` - send a goodbye message when a user leaves",
-                    "banmessage": "`{0}banmessage`"
+                    "banmessage": "`{0}banmessage` - send a message when a user gets banned"
                 },
                 "Autoroles": {
                     "reactionroles": "`{0}reactionroles` - give people roles when they react to messages",
                     "joinrole": ""
                 },
                 "Fun": {
-                    "minesweeper": "`{0}minesweeper`",
-                    "randomnumber": "",
-                    "remind": "",
-                    "cat": "",
-                    "dog": "",
-                    "pussy": ""
+                    "minesweeper": "`{0}minesweeper <width> <height> <bombCount>` - send a game of minesweeper",
+                    "randomnumber": "`{0}randomnumber <from> <to>` - get a random number from the given interval including both values (alias: `rn`)",
+                    "remind": "`{0}remind <duration> <reason>` - set a reminder",
+                    "cat": "`{0}cat` - send a random picture of a cat",
+                    "dog": "`{0}dog` - send a random picture of a dog"
                 },
                 "Music": {
-                    "join": "`{0}join`",
-                    "stop": "",
-                    "play": "",
-                    "skip": "",
-                    "search": "",
-                    "queue": "",
-                    "remove": "",
-                    "np": "",
-                    "volume": "",
-                    "pause": "",
-                    "resume": "",
-                    "seek": "",
-                    "playlist": "",
-                    "loop": "",
-                    "playingmessages": ""
+                    "join": "`{0}join` - let the bot join your voice channel",
+                    "stop": "`{0}stop` - stop playing music",
+                    "play": "`{0}play <song>` - play a song",
+                    "skip": "`{0}skip` - skip the song that is currently playing",
+                    "search": "`{0}search <song>` - list the first search results to select which one you want to hear",
+                    "queue": "`{0}queue` - list the queue",
+                    "remove": "`{0}remove (all|<index>)` - remove the song from the queue or clear it",
+                    "np": "`{0}np` - show information about the song that is currently playing (alias: `nowplaying`)",
+                    "volume": "`{0}volume (get|set <volume>)` - get or set the volume",
+                    "pause": "`{0}pause` - pause the song",
+                    "resume": "`{0}resume` - resume the song",
+                    "seek": "`{0}seek <position>` - jump to the position",
+                    "playlist": "`{0}playlist` - manage your playlists",
+                    "loop": "`{0}loop (disable|song|all)` - enable or disable looping",
+                    "playingmessages": "`{0}playingmessages (enable|disable)` - enable or disable messages telling you when a new song starts playing"
+                },
+                "NSFW": {
+                    "4k": "",
+                    "ass": "",
+                    "boobs": "",
+                    "cock": "",
+                    "pussy": ""
                 },
                 "Bot Staff Only": {
                     "getid": "`{0}getid`",
@@ -63,9 +69,9 @@
                     "bcall": ""
                 },
                 "uncategorized": {
-                    "prefix": "`{0}prefix`",
-                    "language": "",
-                    "choose": "",
+                    "prefix": "`{0}prefix <newPrefix>` - change the bot's prefix",
+                    "language": "`{0}langauge (get|list|set <language>)` - get or set the language the bot should use on this server (alias: `lang`)",
+                    "choose": "`{0}choose <options>...` - choose one from many options",
                     "userlimit": "",
                     "token": "",
                     "---weather": "",
@@ -82,14 +88,101 @@
                 }
             }
         },
+        "commandErrorTitle": "Help - {0}",
         "commands": {
+            "about": {
+                "help": [
+                    "`{0}about` - show some information about the bot"
+                ]
+            },
+            "anticaps": {
+                "help": [
+                    "`{0}anticaps minlength (get|set <length>)` - get or set the length the message content has to have to be filtered",
+                    "`{0}anticaps mincaps (get|set <percent>)` - get or set how many capital characters are required to filter messages",
+                    "`{0}anticaps delete (get|set (true|false))` - get or set whether messages that exceed the limit should get deleted",
+                    "`{0}anticaps warning (get|set <warning>|remove)` - get, set or remove the warning that should get sent"
+                ]
+            },
+            "ban": {
+                "help": [
+                    "`{0}ban <user>` - ban a user",
+                    "`{0}ban <user> <reason>` - ban a user with a reason"
+                ]
+            },
+            "banmessage": {},
+            "blockchannel": {},
+            "botsuggestions": {},
+            "cat": {
+                "help": [
+                    "`{0}cat` - send a random picture of a cat"
+                ]
+            },
+            "choose": {
+                "help": [
+                    "`{0}choose <option1> <option2> [<moreOptions>...]` - choose one of the options you gave"
+                ]
+            },
+            "command": {},
+            "dog": {
+                "help": [
+                    "`{0}dog` - send a random picture of a dog"
+                ]
+            },
+            "dynamicvoicechannel": {},
+            "help": {
+                "help": [
+                    "`{0}help` - send the help message",
+                    "`{0}help <pageNumber>` - send the help message on the given page",
+                    "`{0}help <command>` - send the help message of a command"
+                ]
+            },
+            "invites": {},
+            "joinmessage": {},
+            "joinrole": {},
+            "kick": {
+                "help": [
+                    "`{0}kick <user>` - kick a user",
+                    "`{0}kick <user> <reason>` - kick a user with a reason"
+                ]
+            },
+            "language": {},
+            "leavemessage": {},
+            "minesweeper": {
+                "help": [
+                    "`{0}minesweeper <width> <height> <bombCount>` - create a game of minesweeper",
+                    "Be careful to not explode!"
+                ]
+            },
+            "permissions": {},
+            "poll": {},
             "prefix": {
-                "help": {
-                    "title": "This is some title",
-                    "value": "This is some value",
-                    "color": 0
-                }
-            }
+                "help": [
+                    "`{0}prefix <newPrefix>` - change the bot's prefix"
+                ]
+            },
+            "randomnumber": {},
+            "reactionroles": {},
+            "remind": {
+                "help": [
+                    "`{0}remind <duration> <reason>` - remind you of something important",
+                    "",
+                    "A valid duration can be `42` which will be interpreted as minutes but also something like `5h2min52s` (the order is not important)"
+                ]
+            },
+            "report": {},
+            "resetnicks": {},
+            "stats": {},
+            "suggestions": {},
+            "token": {
+                "help": [
+                    "`{0}token get` - get the token to customize the settings [online](https://l0c4lh057.jg-p.eu/l0c4lb0t/dashboard/)",
+                    "`{0}token new` - renew the token to be sure nobody has access to it anymore",
+                    "",
+                    "**Warning:** The guild token is very powerful. Only the server owner can get and renew it. Don't share it with anyone you don't trust 150%!"
+                ]
+            },
+            "unknowncommandmessage": {},
+            "userlimit": {}
         }
     }
 }

@@ -30,12 +30,12 @@
         <dependency>
             <groupId>com.discord4j</groupId>
             <artifactId>discord4j-core</artifactId>
-            <version>3.0.5</version>
+            <version>3.0.6</version>
         </dependency>
         <dependency>
             <groupId>com.discord4j</groupId>
             <artifactId>discord4j-voice</artifactId>
-            <version>3.0.5</version>
+            <version>3.0.6</version>
         </dependency>
         <dependency>
             <groupId>mysql</groupId>
