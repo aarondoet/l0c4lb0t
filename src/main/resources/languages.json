@@ -183,6 +183,10 @@
             },
             "unknowncommandmessage": {},
             "userlimit": {}
+        },
+        "nsfwChannelRequired": {
+            "title": "NSFW channel required",
+            "content": "This command is an NSFW command, please execute it in an NSFW channel."
         }
     }
 }

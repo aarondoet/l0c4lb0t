@@ -13,14 +13,12 @@ import discord4j.core.event.domain.message.MessageCreateEvent;
 import discord4j.core.event.domain.message.ReactionAddEvent;
 import discord4j.core.object.entity.GuildMessageChannel;
 import discord4j.core.object.entity.Member;
-import discord4j.core.object.entity.TextChannel;
 import discord4j.core.object.entity.User;
 import discord4j.core.object.trait.Categorizable;
 import discord4j.core.object.util.Snowflake;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.awt.*;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
@@ -40,7 +38,7 @@ public class BotEvents {
     public static void registerEvents(DiscordClient client){
         client.getEventDispatcher().on(ReadyEvent.class)
                 .doOnNext(e -> BotUtils.l0c4lh057 = e.getClient().getUserById(Snowflake.of(226677096091484160L)).block())
-                .doOnNext(e -> System.out.println("Logged in as " + e.getSelf().getUsername()))
+                .doOnNext(e -> System.out.println("Logged in as " + e.getSelf().getUsername() + "#" + e.getSelf().getDiscriminator()))
                 .subscribe();
         // initialize nonexistent guilds and update existing ones
         client.getEventDispatcher().on(GuildCreateEvent.class)
@@ -64,11 +62,14 @@ public class BotEvents {
                         .flatMap(content -> BotUtils.getPrefix(e.getGuildId().get().asLong())
                                 // commands
                                 .flatMap(pref -> Flux.fromIterable(BotCommands.commands.entrySet())
-                                        .filter(cmd -> BotUtils.isCommand(content, cmd.getKey(), pref))
+                                        //.filter(cmd -> BotUtils.isCommand(content, cmd.getKey(), pref))
                                         .flatMap(cmd -> BotUtils.truncateMessage(content, cmd.getKey(), pref)
                                                 .flatMap(truncated -> BotUtils.messageToArgs(truncated)
                                                         .flatMap(args -> Mono.just(LocaleManager.getGuildLanguage(e.getGuildId().get().asLong()))
                                                                 .flatMap(lang -> cmd.getValue().execute(e, pref, args, lang).doOnError(err -> err.printStackTrace()).onErrorReturn(false)
+                                                                        // SCRIPT EXECUTION START
+                                                                        .doOnNext(success -> ScriptExecutor.onCommandEvent(e, cmd.getKey(), args, success))
+                                                                        // SCRIPT EXECUTION END
                                                                         .filter(success -> !success)
                                                                         .flatMap(success -> {
                                                                             BotUtils.sendHelpMessage(e.getMessage().getChannel().ofType(GuildMessageChannel.class).block(), cmd.getKey()[0], pref, lang);
@@ -84,13 +85,15 @@ public class BotEvents {
                                                 .filter(cmd -> BotUtils.isCommand(content, new String[]{cmd.getKey()}, pref))
                                                 .flatMap(cmd -> e.getMessage().getChannel()
                                                         .flatMap(c -> c.createMessage(mcs -> mcs.setContent(cmd.getValue())))
+                                                        .doOnNext(x -> ScriptExecutor.onCustomCommandEvent(e, cmd.getKey()))
                                                         .flatMap(x -> Mono.just(true))
                                                 )
                                         )
                                         // no command found
                                         .switchIfEmpty(Mono.justOrEmpty(DataManager.getGuild(e.getGuildId().get().asLong()).getUnknownCommandMessage())
-                                                .filter(em -> em.trim().length() > 0)
                                                 .filter(em -> BotUtils.isCommand(content, new String[]{"[a-zA-Z0-9]+"}, pref))
+                                                .doOnNext(em -> ScriptExecutor.onUnknownCommand(e))
+                                                .filter(em -> em.trim().length() > 0)
                                                 .flatMap(em -> e.getMessage().getChannel()
                                                         .flatMap(c -> c.createMessage(mcs -> mcs.setContent(em)))
                                                         .flatMap(x -> Mono.just(true))
@@ -184,7 +187,7 @@ public class BotEvents {
                 .filter(e -> e.getGuildId().isPresent())
                 .flatMap(e -> e.getMessage()
                         .filter(m -> e.getUserId().asLong() != e.getClient().getSelfId().get().asLong())
-                        .flatMap(m -> Mono.just(BotUtils.getSuggestionPageNumner(m))
+                        .flatMap(m -> Mono.just(BotUtils.getSuggestionPageNumber(m))
                                 .filter(nbr -> nbr > -1)
                                 .doOnNext(nbr -> {
                                     long itemsPerPage = 5;
@@ -195,7 +198,7 @@ public class BotEvents {
                                         currentPage.incrementAndGet();
                                     long maxPages = DataManager.getSuggestionPageCount(e.getGuildId().get().asLong(), itemsPerPage);
                                     currentPage.set(BotUtils.clamp(currentPage.get(), 1L, maxPages));
-                                    List<SQLSuggestion> suggestions = DataManager.getSuggestions(e.getGuildId().get().asLong(), currentPage.get(), itemsPerPage);
+                                    List<SQLFeedback> suggestions = DataManager.getSuggestions(e.getGuildId().get().asLong(), currentPage.get(), itemsPerPage);
                                     String s = suggestions.stream().map(suggestion -> suggestion.getStatus().getEmoji().asUnicodeEmoji().get().getRaw() + " #" + suggestion.getId() + ": " + suggestion.getTitle()).collect(Collectors.joining("\n"));
                                     m.edit(mes -> mes.setEmbed(ecs -> ecs
                                             .setTitle("Suggestions")
@@ -246,7 +249,7 @@ public class BotEvents {
                                                 .setTitle(LocaleManager.getLanguageString(lang, "help.title"))
                                                 .addField(pageName, page.values().stream().map(cmd -> BotUtils.formatString(cmd, prefix)).collect(Collectors.joining("\n")), false)
                                                 .setFooter(LocaleManager.getLanguageString(lang, "help.footer", "" + (pageNbr.get()+1), "" + pages.size()), null)
-                                                .setColor(new Color(8158463))
+                                                .setColor(BotUtils.botColor)
                                         )).subscribe();
                                         break;
                                     }

@@ -37,10 +37,7 @@ public class SFWUtils {
     }
 
     public static String getCock(){
-        return "";
-    }
-
-    public static String getRandomRedditPic(String subreddit){
+        // i don't know any api for cock images :(
         return "";
     }
 

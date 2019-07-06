@@ -4,11 +4,10 @@ import DataManager.*;
 import DataManager.DataManager.*;
 import Media.NSFWUtils;
 import Media.SFWUtils;
+import Media.UrbanDictionary;
 import Music.MusicManager;
 import Patreon.PatreonManager;
-import Patreon.Patron;
 import com.fasterxml.jackson.databind.JsonNode;
-import discord4j.core.event.domain.message.MessageCreateEvent;
 import discord4j.core.object.entity.*;
 import discord4j.core.object.reaction.ReactionEmoji;
 import discord4j.core.object.util.Permission;
@@ -16,7 +15,6 @@ import discord4j.core.object.util.Snowflake;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.awt.*;
 import java.sql.JDBCType;
 import java.text.SimpleDateFormat;
 import java.time.Instant;
@@ -30,6 +28,11 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class BotCommands {
+
+    /**
+     * The id list of the guilds that have automatic backups enabled
+     */
+    public static List<Long> autoBackupGuilds = new ArrayList<>();
 
     /**
      * The list of all {@link Command}s. The key is an array of all valid command names, the first one is the main name. The value is the {@link Command}
@@ -517,7 +520,7 @@ public class BotCommands {
                                 .setTitle(LocaleManager.getLanguageString(lang, "help.title"))
                                 .addField(pageName, page.values().stream().map(cmd -> BotUtils.formatString(cmd, prefix)).collect(Collectors.joining("\n")), false)
                                 .setFooter(LocaleManager.getLanguageString(lang, "help.footer", "" + (pageNbr.get()+1), "" + pages.size()), null)
-                                .setColor(new Color(8158463))
+                                .setColor(BotUtils.botColor)
                         ).flatMap(m -> Flux.fromIterable(new ArrayList<>(Arrays.asList(BotUtils.arrowLeft, BotUtils.arrowRight, BotUtils.x)))
                                 .flatMap(emoji -> m.addReaction(emoji))
                                 .next()
@@ -777,7 +780,7 @@ public class BotCommands {
 
 
 
-        commands.put(new String[]{"suggest", "suggestion", "suggestions"}, (e, prefix, args, lang) -> e.getMessage().getChannel()
+        commands.put(new String[]{"feedback"}, (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .filter(c -> args.size() > 0)
                 .flatMap(c -> {
                     if((args.size() == 1 || args.size() == 2) && args.get(0).equalsIgnoreCase("list")){
@@ -792,10 +795,10 @@ public class BotCommands {
                         }
                         long maxPageNumber = DataManager.getSuggestionPageCount(e.getGuildId().get().asLong(), itemsPerPage);
                         pageNumber.set(BotUtils.clamp(pageNumber.get(), 1L, maxPageNumber));
-                        List<SQLSuggestion> suggestions = DataManager.getSuggestions(e.getGuildId().get().asLong(), pageNumber.get(), itemsPerPage);
+                        List<SQLFeedback> suggestions = DataManager.getSuggestions(e.getGuildId().get().asLong(), pageNumber.get(), itemsPerPage);
                         String s = suggestions.stream().map(suggestion -> suggestion.getStatus().getEmoji().asUnicodeEmoji().get().getRaw() + " #" + suggestion.getId() + ": " + suggestion.getTitle()).collect(Collectors.joining("\n"));
                         c.createEmbed(ecs -> ecs
-                                .setTitle("Suggestions")
+                                .setTitle("Feedback")
                                 .setDescription(s)
                                 .setFooter("Page " + pageNumber.get() + "/" + maxPageNumber, null)
                         ).flatMap(m -> Flux.fromIterable(new ArrayList<>(Arrays.asList(BotUtils.arrowLeft, BotUtils.arrowRight)))
@@ -806,16 +809,17 @@ public class BotCommands {
                     }else if(args.size() == 2 && args.get(0).equalsIgnoreCase("get")){
                         try {
                             int sId = Integer.parseInt(args.get(1));
-                            SQLSuggestion suggestion = DataManager.getSuggestion(e.getGuildId().get().asLong(), sId);
+                            SQLFeedback suggestion = DataManager.getSuggestion(e.getGuildId().get().asLong(), sId);
                             if(suggestion == null){
-                                c.createMessage("Could not find a suggestion with the id " + sId).subscribe();
+                                c.createMessage("Could not find feedback with the id " + sId).subscribe();
                                 return Mono.just(true);
                             }
                             User u = e.getClient().getUserById(Snowflake.of(suggestion.getCreatorId())).block();
                             c.createEmbed(ecs -> ecs
                                     .setAuthor(u == null ? "user not found" : u.getUsername() + "#" + u.getDiscriminator(), null, u == null ? null : u.getAvatarUrl())
-                                    .setTitle("Suggestion #" + sId + ": " + suggestion.getTitle())
+                                    .setTitle("Feedback #" + sId + ": " + suggestion.getTitle())
                                     .setDescription(suggestion.getContent())
+                                    .addField("Type", suggestion.getType().getName(), false)
                                     .addField("Status: " + suggestion.getStatus().getName(), suggestion.getDetailedStatus().orElse("No description set"), false)
                                     .addField("Last update", BotUtils.getDuration(e.getMessage().getTimestamp().minusMillis(suggestion.getLastUpdate().toEpochMilli()).getEpochSecond()) + " ago", false)
                                     .setColor(suggestion.getStatus().getColor())
@@ -830,7 +834,7 @@ public class BotCommands {
                         // set notification status for given suggestion
                         try {
                             int sId = Integer.parseInt(args.get(1));
-                            SQLSuggestion suggestion = DataManager.getSuggestion(e.getGuildId().get().asLong(), sId);
+                            SQLFeedback suggestion = DataManager.getSuggestion(e.getGuildId().get().asLong(), sId);
                             if(suggestion == null){
                                 c.createMessage("could not find a suggestion with the id " + sId).subscribe();
                                 return Mono.just(true);
@@ -845,10 +849,12 @@ public class BotCommands {
                             return Mono.just(true);
                         }
                         return Mono.just(true);
-                    }else if(args.size() > 2 && (args.get(0).equalsIgnoreCase("add") || args.get(0).equalsIgnoreCase("create") || args.get(0).equalsIgnoreCase("suggest"))){
-                        String title = args.get(1);
-                        String content = String.join(" ", args.subList(2, args.size()));
-                        int suggestionId = DataManager.addSuggestion(e.getGuildId().get().asLong(), e.getMessage().getAuthor().get().getId().asLong(), title, content, e.getMessage().getTimestamp());
+                    }else if(args.size() > 3 && (args.get(0).equalsIgnoreCase("add") || args.get(0).equalsIgnoreCase("create") || args.get(0).equalsIgnoreCase("suggest"))){
+                        SQLFeedback.FeedbackType type = SQLFeedback.FeedbackType.getFeedbackType(args.get(1));
+                        if(type == null) return Mono.just(false);
+                        String title = args.get(2);
+                        String content = String.join(" ", args.subList(3, args.size()));
+                        int suggestionId = DataManager.addSuggestion(e.getGuildId().get().asLong(), e.getMessage().getAuthor().get().getId().asLong(), title, content, e.getMessage().getTimestamp(), type);
                         if(suggestionId > -1) {
                             DataManager.setSuggestionNotification(e.getGuildId().get().asLong(), e.getMessage().getAuthor().get().getId().asLong(), suggestionId, true);
                             c.createMessage("created suggestion with id " + suggestionId).subscribe();
@@ -868,7 +874,7 @@ public class BotCommands {
                             return BotUtils.sendNoPermissionsMessage(c);
                         try{
                             int sId = Integer.parseInt(args.get(1));
-                            SQLSuggestion suggestion = DataManager.getSuggestion(e.getGuildId().get().asLong(), sId);
+                            SQLFeedback suggestion = DataManager.getSuggestion(e.getGuildId().get().asLong(), sId);
                             if(suggestion == null){
                                 c.createMessage("could not find suggestion with id " + sId).subscribe();
                                 return Mono.just(true);
@@ -918,29 +924,33 @@ public class BotCommands {
         /* NSFW */
 
         commands.put(new String[]{"boobs", "boob"}, (e, prefix, args, lang) -> e.getMessage().getChannel().ofType(GuildMessageChannel.class)
-                .filter(c -> BotUtils.checkChannelForNSFW(c))
+                .filter(BotUtils::checkChannelForNSFW)
                 .flatMap(c -> c.createMessage(NSFWUtils.getBoobs()))
                 .flatMap(x -> Mono.just(true))
         );
-        commands.put(new String[]{"ass", "arse"}, (e, prefix, args, lang) -> e.getMessage().getChannel()
+        commands.put(new String[]{"ass", "arse"}, (e, prefix, args, lang) -> e.getMessage().getChannel().ofType(GuildMessageChannel.class)
+                .filter(BotUtils::checkChannelForNSFW)
                 .flatMap(c -> c.createMessage(NSFWUtils.getAss()))
                 .flatMap(x -> Mono.just(true))
         );
-        commands.put(new String[]{"asian"}, (e, prefix, args, lang) -> e.getMessage().getChannel()
+        commands.put(new String[]{"asian"}, (e, prefix, args, lang) -> e.getMessage().getChannel().ofType(GuildMessageChannel.class)
+                .filter(BotUtils::checkChannelForNSFW)
                 .flatMap(c -> c.createMessage(NSFWUtils.getAsian()))
                 .flatMap(x -> Mono.just(true))
         );
-        commands.put(new String[]{"neko", "nekos"}, (e, prefix, args, lang) -> e.getMessage().getChannel()
+        commands.put(new String[]{"neko", "nekos"}, (e, prefix, args, lang) -> e.getMessage().getChannel().ofType(GuildMessageChannel.class)
+                .filter(BotUtils::checkChannelForNSFW)
                 .flatMap(c -> c.createMessage(NSFWUtils.getNeko()))
                 .flatMap(x -> Mono.just(true))
         );
 
         commands.put(new String[]{"pussy"}, (e, prefix, args, lang) -> e.getMessage().getChannel().ofType(GuildMessageChannel.class)
+                .filter(BotUtils::checkChannelForNSFW)
                 .flatMap(c -> c.createMessage(SFWUtils.getCat()))
                 .flatMap(x -> Mono.just(true))
         );
         commands.put(new String[]{"cock"}, (e, prefix, args, lang) -> e.getMessage().getChannel().ofType(GuildMessageChannel.class)
-                .filter(c -> BotUtils.checkChannelForNSFW(c))
+                .filter(BotUtils::checkChannelForNSFW)
                 .flatMap(c -> c.createMessage(SFWUtils.getCock()))
                 .flatMap(x -> Mono.just(true))
         );
@@ -951,16 +961,27 @@ public class BotCommands {
                     if(args.size() == 2 && (args.get(0).equalsIgnoreCase("auutomated") || args.get(0).equalsIgnoreCase("automation") || args.get(0).equalsIgnoreCase("automate") || args.get(0).equalsIgnoreCase("automatic"))) {
                         if(PatreonManager.isPatronGuild(e.getGuildId().get().asLong())){
                             if(args.get(1).equalsIgnoreCase("enable")){
-                                // enable
+                                if(autoBackupGuilds.contains(e.getGuildId().get().asLong())){
+                                    // already enabled
+                                }else{
+                                    autoBackupGuilds.add(e.getGuildId().get().asLong());
+                                    // added
+                                }
                             }else if(args.get(1).equalsIgnoreCase("disable")){
-                                // disable
+                                if(autoBackupGuilds.remove(e.getGuildId().get().asLong())){
+                                    // removed
+                                }else{
+                                    // was not enabled
+                                }
                             }else if(args.get(1).equalsIgnoreCase("get")){
                                 // tell whether is is enabled or not
+                                boolean enabled = autoBackupGuilds.contains(e.getGuildId().get().asLong());
                             }
                         }else{
                             // can't use automated backups
                         }
-                    }else if(args.size() > 1) {
+                    }
+                    if(args.size() > 1) {
                         if (args.get(0).equalsIgnoreCase("create")) {
                             String bId = String.join(" ", args.subList(1, args.size()));
                             if(DataManager.guildBackupExists(e.getGuildId().get().asLong(), bId)){
@@ -987,6 +1008,29 @@ public class BotCommands {
                         }
                     }
                     return Mono.just(false);
+                })
+        );
+
+        commands.put(new String[]{"urbandictionary", "urban", "define"}, (e, prefix, args, lang) -> e.getMessage().getChannel()
+                .filter(c -> BotUtils.checkChannelForNSFW(c))
+                .filter(c -> !args.isEmpty())
+                .flatMap(c -> {
+                    UrbanDictionary dictionary = new UrbanDictionary(String.join(" ", args));
+                    UrbanDictionary.UrbanDefinition definition = dictionary.getRandomDefinition();
+                    if(definition == null){
+                        c.createMessage("not found").subscribe();
+                        return Mono.just(true);
+                    }
+                    c.createEmbed(ecs -> ecs
+                            .setAuthor(definition.getAuthorName(), definition.getAuthorUrl(), null)
+                            .setTimestamp(definition.getTime())
+                            .setFooter("Thumbs up: " + definition.getUpvotes() + ", Thumbs down: " + definition.getDownvotes(), null)
+                            .setUrl(definition.getUrl())
+                            .setDescription(definition.getFormattedDefinition())
+                            .addField("Example", definition.getFormattedExample(), false)
+                            .setTitle("Definition of \"" + definition.getWord() + "\"")
+                    ).subscribe();
+                    return Mono.just(true);
                 })
         );
 

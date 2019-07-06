@@ -7,31 +7,35 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import discord4j.core.DiscordClient;
 import discord4j.core.DiscordClientBuilder;
-import discord4j.core.event.domain.message.MessageCreateEvent;
 import discord4j.core.object.Embed;
 import discord4j.core.object.entity.*;
 import discord4j.core.object.reaction.ReactionEmoji;
+import discord4j.core.object.util.Permission;
+import discord4j.core.object.util.PermissionSet;
 import discord4j.core.object.util.Snowflake;
-import discord4j.core.spec.EmbedCreateSpec;
 import discord4j.core.spec.MessageCreateSpec;
 import discord4j.core.spec.MessageEditSpec;
 import discord4j.core.util.EntityUtil;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.util.annotation.Nullable;
 
 import java.awt.*;
-import java.time.Instant;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.List;
-import java.util.concurrent.Callable;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public class BotUtils {
 
     /**
      * Gets the {@link DiscordClient} by the token
+     *
      * @param token The bot token
      * @return The {@link DiscordClient}
      */
@@ -41,6 +45,7 @@ public class BotUtils {
 
     /**
      * Gets all bot administrators
+     *
      * @return A {@link List} of all bot administrators
      */
     public static List<Long> getBotAdmins(){return Arrays.asList(226677096091484160L);}
@@ -49,10 +54,26 @@ public class BotUtils {
      * The main color of the bot
      */
     public static final Color botColor = new Color(124, 124, 255);
+
+    public static final Color darkRed = new Color(0xFF0000);
+
+    public static final Color lighterRed = new Color(0xFF5246);
+    /**
+     * Discord user of l0c4lh057
+     */
     public static User l0c4lh057 = null;
 
+    /**
+     * Arrow left emoji
+     */
     public static final ReactionEmoji arrowLeft = ReactionEmoji.unicode("\u2B05");
+    /**
+     * Arrow right emoji
+     */
     public static final ReactionEmoji arrowRight = ReactionEmoji.unicode("\u27A1");
+    /**
+     * X emoji
+     */
     public static final ReactionEmoji x = ReactionEmoji.unicode("\u274C");
 
     /**
@@ -78,13 +99,6 @@ public class BotUtils {
      * @return The content split into arguments
      */
     public static Mono<List<String>> messageToArgs(String content){
-        /*if(content.trim().length() == 0) return Mono.just(Arrays.asList());
-        String[] args = content.split(" (?=([^\"]*\"[^\"]*\")*[^\"]*$)");
-        for(int i = 0; i < args.length; i++){
-            if(args[i].startsWith("\"") && args[i].endsWith("\""))
-                args[i] = args[i].substring(1, args[i].length() - 1);
-        }
-        return Mono.just(new ArrayList<>(Arrays.asList(args)));*/
         List<String> args = new ArrayList<>();
         boolean escaped = false;
         boolean inQuotes = false;
@@ -135,8 +149,9 @@ public class BotUtils {
      * To use backslashes they also have to be escaped with an backslash, new lines can be achieved by escaping an {@code n} character.<br/>
      * Example:<br/>
      * {@code "this is an argument", 'the second argument', "argument can contain quotes \", backslashes \\ and line breaks \n."}
+     *
      * @param content
-     * @return
+     * @return The parameters
      */
     public static List<String> contentToParameters(String content){
         List<String> args = new ArrayList<>();
@@ -186,6 +201,7 @@ public class BotUtils {
 
     /**
      * Returns whether the {@link String} is the command or not
+     *
      * @param content The message content you want to check
      * @param cmd     The array of {@link String}s that are valid names for command you want to test for
      * @param prefix  The prefix the message should start with
@@ -194,11 +210,12 @@ public class BotUtils {
     public static boolean isCommand(String content, String[] cmd, String prefix){
         prefix = escapeRegex(prefix);
         String bId = BotMain.client.getSelfId().get().asString();
-        return Pattern.compile("^(?:" + prefix + "|\\<@\\!?" + bId + "\\> ?)(?:" + String.join("|", cmd) + ")(?: +(.*))?$", Pattern.CASE_INSENSITIVE + Pattern.DOTALL).matcher(content).matches();
+        return Pattern.compile("^(?:" + prefix + "|\\<@\\!?" + bId + "\\> ?)(?i)(?:" + String.join("|", cmd) + ")(?-i)(?: (.*))?$", Pattern.DOTALL).matcher(content).matches();
     }
 
     /**
      * Truncates a {@link String}
+     *
      * @param content The message content you want to truncate
      * @param cmd     The array of {@link String}s that are valid names for the command
      * @param prefix  The prefix
@@ -207,15 +224,16 @@ public class BotUtils {
     public static Mono<String> truncateMessage(String content, String[] cmd, String prefix){
         prefix = escapeRegex(prefix);
         String bId = BotMain.client.getSelfId().get().asString();
-        Matcher matcher = Pattern.compile("^(?:" + prefix + "|\\<@\\!?" + bId + "\\> ?)(?:" + String.join("|", cmd) + ")(?: +(.*))?$", Pattern.CASE_INSENSITIVE + Pattern.DOTALL).matcher(content);
+        Matcher matcher = Pattern.compile("^(?:" + prefix + "|\\<@\\!?" + bId + "\\> ?)(?i)(?:" + String.join("|", cmd) + ")(?-i)(?: (.*))?$", Pattern.DOTALL).matcher(content);
         if(matcher.matches())
             return Mono.just(matcher.group(1) == null ? "" : matcher.group(1));
         else
-            return Mono.just("");
+            return Mono.empty();
     }
 
     /**
      * Escapes all RegEx characters in a {@link String}
+     *
      * @param text The {@link String} you want to escape
      * @return The escaped {@link String}
      */
@@ -226,6 +244,7 @@ public class BotUtils {
     /**
      * Gets the {@link Color} by a {@link String}<br/>
      * This can be a {@link String} like {@code #rrggbb}, {@code #rgb}, {@code 1234567} or {@code RED}
+     *
      * @param color        The {@link String} representation of the {@link Color}
      * @param defaultColor The {@link Color} that should be returned if the {@link String} could not be converted
      * @return The parsed color or the {@code defaultColor}
@@ -260,6 +279,7 @@ public class BotUtils {
 
     /**
      * Gets a {@link MessageCreateSpec} by a {@link String}
+     *
      * @param text The {@link String} representation of the {@link MessageCreateSpec}
      * @return The text parsed to a {@link MessageCreateSpec}
      */
@@ -302,6 +322,7 @@ public class BotUtils {
 
     /**
      * Gets a {@link MessageEditSpec} by a {@link String}
+     *
      * @param text The {@link String} representation of the {@link MessageEditSpec}
      * @return The text parsed to a {@link MessageEditSpec}
      */
@@ -343,6 +364,7 @@ public class BotUtils {
 
     /**
      * Gets a {@link Role} by a {@link String}
+     *
      * @param guild The {@link Guild} the {@link Role} is in
      * @param role  The {@link String} representation of the {@link Role}
      * @return The {@link Role}
@@ -352,6 +374,7 @@ public class BotUtils {
     }
     /**
      * Gets a {@link Role} by a {@link String}
+     *
      * @param guild The {@link Mono}<{@link Guild}> the {@link Role} is in
      * @param role  The {@link String} representation of the {@link Role}
      * @return The {@link Role}
@@ -362,6 +385,7 @@ public class BotUtils {
 
     /**
      * Gets a {@link Member} by a {@link String}
+     *
      * @param guild  The {@link Guild} the {@link Member} is in
      * @param member The {@link String} representation of the {@link Member}
      * @return The {@link Member}
@@ -371,6 +395,7 @@ public class BotUtils {
     }
     /**
      * Gets a {@link Member} by a {@link String}
+     *
      * @param guild  The {@link Mono}<{@link Guild}> the {@link Member} is in
      * @param member The {@link String} representation of the {@link Member}
      * @return The {@link Member}
@@ -381,6 +406,7 @@ public class BotUtils {
 
     /**
      * Gets a {@link GuildChannel} by a {@link String}
+     *
      * @param guild   The {@link Guild} the {@link GuildChannel} is in
      * @param channel The {@link String} representation of the {@link GuildChannel}
      * @return The {@link GuildChannel}
@@ -390,6 +416,7 @@ public class BotUtils {
     }
     /**
      * Gets a {@link GuildChannel} by a {@link String}
+     *
      * @param guild   The {@link Mono}<{@link Guild}> the {@link GuildChannel} is in
      * @param channel The {@link String} representation of the {@link GuildChannel}
      * @return The {@link GuildChannel}
@@ -400,6 +427,7 @@ public class BotUtils {
 
     /**
      * Gets a {@link User} by a {@link String}
+     *
      * @param user The {@link String} representation of the {@link User}
      * @return The {@link User}
      */
@@ -408,11 +436,11 @@ public class BotUtils {
                 .switchIfEmpty(Mono.just(user)
                         .flatMap(u -> {
                             if(u.matches("^\\d+$"))
-                                return BotMain.client.getUserById(Snowflake.of(u));
+                                return BotMain.client.getUserById(Snowflake.of(u)).onErrorResume(err -> Mono.empty());
                             else if(u.matches("^<@\\d+>$"))
-                                return BotMain.client.getUserById(Snowflake.of(u.substring(2, u.length() - 1)));
+                                return BotMain.client.getUserById(Snowflake.of(u.substring(2, u.length() - 1))).onErrorResume(err -> Mono.empty());
                             else if(u.matches("^<@!\\d+>$"))
-                                return BotMain.client.getUserById(Snowflake.of(u.substring(3, u.length() - 1)));
+                                return BotMain.client.getUserById(Snowflake.of(u.substring(3, u.length() - 1))).onErrorResume(err -> Mono.empty());
                             return Mono.empty();
                         })
                 );
@@ -420,6 +448,7 @@ public class BotUtils {
 
     /**
      * Gets the creation time base off the id
+     *
      * @param id The id
      * @return The time of creation
      */
@@ -430,6 +459,7 @@ public class BotUtils {
 
     /**
      * Sends a {@link Message} to the given {@link MessageChannel} that shows the usage of the {@link Command}
+     *
      * @param channel The {@link MessageChannel}
      * @param cmd     The command
      * @param pref    The prefix of the guild
@@ -440,13 +470,14 @@ public class BotUtils {
                 .setEmbed(ecs -> ecs
                         .setDescription(LocaleManager.getLanguageString(lang, "commands." + cmd + ".help", pref))
                         .setTitle(LocaleManager.getLanguageString(lang, "commandErrorTitle", cmd))
-                        .setColor(new Color(16711680))
+                        .setColor(darkRed)
                 )
         ).subscribe();
     }
 
     /**
      * Sends a {@link Message} to the given channel saying that an error occurred while performing the action
+     *
      * @param channel The {@link MessageChannel} the {@link Message} should be sent in
      * @return A {@link Mono} with the value true
      */
@@ -457,6 +488,7 @@ public class BotUtils {
 
     /**
      * Sends a {@link Message} to the given channel saying the {@link Member} does not have the permissions to perform the {@link Command}
+     *
      * @param channel The {@link MessageChannel} the {@link Message} should get sent in
      * @return A {@link Mono} with the value true
      */
@@ -467,6 +499,7 @@ public class BotUtils {
 
     /**
      * Parses a {@link String} to the duration in milliseconds
+     *
      * @param duration The {@link String} that represents the duration
      * @return The duration in milliseconds or {@code -1} if the duration could not be parsed
      */
@@ -494,6 +527,7 @@ public class BotUtils {
 
     /**
      * Parses a {@link String} to the duration in seconds
+     *
      * @param duration The {@link String} that represents the duration
      * @return The duration in seconds or {@code -1} if the duration could not be parsed
      */
@@ -519,6 +553,7 @@ public class BotUtils {
     /**
      * Parses a duration in seconds to the {@link String} representation. Time units that have the value {@code 0} get ignored.<br/>
      * Example: 921658 will be parsed to {@code 10d 16h 58s}
+     *
      * @param duration The duration in milliseconds
      * @return The {@link String} representation
      */
@@ -535,6 +570,7 @@ public class BotUtils {
 
     /**
      * Replaces {@code {i}} for every {@code i} from {@code 0} to {@code args.length - 1} with the value in {@code args} at position {@code i}
+     *
      * @param input The string you want to format
      * @param args  The arguments you want to have as replaced text
      * @return The formatted {@link String}
@@ -547,6 +583,7 @@ public class BotUtils {
 
     /**
      * Clamps a value
+     *
      * @param value The value you want to clamp
      * @param min   The minimal value
      * @param max   The maximal value
@@ -564,7 +601,8 @@ public class BotUtils {
     public static final String INVITE_MATCHER = "(?<=discord.gg\\/|discordapp.com\\/invite\\/)[a-zA-Z0-9-]{1,50}"; // [^1lIO0\W_]+
 
     /**
-     * Adds both lists in one list
+     * Merges both lists into one list
+     *
      * @param a The first list
      * @param b The second list
      * @return The added lists
@@ -578,6 +616,7 @@ public class BotUtils {
 
     /**
      * Gives you the page number the item is displayed on.
+     *
      * @param itemIndex    The index of the item (first item has index 1)
      * @param itemsPerPage The number of items which should be displayed on each page
      * @return The page number
@@ -588,6 +627,7 @@ public class BotUtils {
 
     /**
      * Tells you if the message is a suggestion message
+     *
      * @param message The message you want to check
      * @return {@code true} if the message is a suggestion message, otherwise {@code false}
      */
@@ -602,7 +642,13 @@ public class BotUtils {
         return true;
     }
 
-    public static int getSuggestionPageNumner(Message message){
+    /**
+     * Gets the number the suggestion message currently shows
+     *
+     * @param message The message to get the page number from
+     * @return The page number (starting from 1) or {@code -1} when the message is no suggestion message
+     */
+    public static int getSuggestionPageNumber(Message message){
         if(message.getAuthor().isEmpty()) return -1;
         if(message.getAuthor().get().getId().asLong() != message.getClient().getSelfId().get().asLong()) return -1;
         if(message.getEmbeds().size() != 1) return -1;
@@ -616,9 +662,10 @@ public class BotUtils {
     }
 
     /**
-     * Returns the page the help message is showing
+     * Gets the page the help message is currently showing
+     *
      * @param message The message
-     * @return The page the message is showing or {@code -1} if it is no help message
+     * @return The page number (starting from 0) the message is showing or {@code -1} if it is no help message
      */
     public static int getHelpPageNumber(Message message){
         if(message.getAuthor().isEmpty()) return -1;
@@ -636,6 +683,7 @@ public class BotUtils {
 
     /**
      * Returns all help pages including the list of custom commands for the guild
+     *
      * @param guild The guild
      * @return All help pages
      */
@@ -651,14 +699,139 @@ public class BotUtils {
 
     /**
      * Checks if the channel is an NSFW channel. If it is marked as NSFW it return true, otherwise it sends a message to the channel, that an NSFW channel is required and false is returned.
+     *
      * @param channel The channel you want to check
      * @return Whether the channel is marked as NSFW or not
      */
-    public static boolean checkChannelForNSFW(GuildMessageChannel channel){
-        if(channel.isNsfw())
+    public static boolean checkChannelForNSFW(MessageChannel channel){
+        if(channel instanceof PrivateChannel)
             return true;
-        channel.createMessage("only available in nsfw channels").subscribe();
+        if(!(channel instanceof GuildMessageChannel))
+            return false;
+        GuildMessageChannel c = (GuildMessageChannel)channel;
+        if(c.isNsfw())
+            return true;
+        JsonNode node = LocaleManager.getLanguageElement(LocaleManager.getGuildLanguage(c.getGuildId().asLong()), "nsfwChannelRequired");
+        c.createEmbed(ecs -> ecs
+                .setTitle(node.get("title").asText())
+                .setDescription(node.get("content").asText())
+                .setColor(lighterRed)
+        ).subscribe();
         return false;
+    }
+
+    public static boolean checkMemberForNSFWPerms(Guild g, Member m, GuildMessageChannel c){
+        if(PermissionManager.hasPermission(g, m, "nsfw", true))
+            return true;
+        sendNoPermissionsMessage(c);
+        return false;
+    }
+
+    public static boolean checkMemberForPerms(Guild g, Member m, GuildMessageChannel c, String cmd, boolean everyone, Permission... defaultPerms){
+        if(PermissionManager.hasPermission(g, m, cmd, everyone, defaultPerms))
+            return true;
+        sendNoPermissionsMessage(c);
+        return false;
+    }
+
+    /**
+     * Checks if the bot has certain {@link Permission}s in the {@link Guild}. If it has all of the permissions {@code true} is returned, otherwise a message telling which permissions are missing is sent and {@code false} is returned.
+     *
+     * @param messageChannel The channel to send the message in
+     * @param permissions    The needed permissions
+     * @return True if the bot has all the permissions or false if it doesn't
+     */
+    public static Mono<Boolean> checkForPermissions(GuildMessageChannel messageChannel, Permission... permissions){
+        return messageChannel.getGuild().flatMap(g -> g.getMemberById(messageChannel.getClient().getSelfId().get())).flatMap(m -> m.getBasePermissions().flatMap(perms -> {
+            if(perms.containsAll(PermissionSet.of(permissions)))
+                return Mono.just(true);
+            messageChannel.getEffectivePermissions(messageChannel.getClient().getSelfId().get())
+                    .filter(p -> perms.contains(Permission.SEND_MESSAGES))
+                    .flatMap(p -> messageChannel.createMessage("Sorry, but I need following permissions to perform this action: " + Arrays.stream(permissions).map(perm -> perm.name()).collect(Collectors.joining(", "))))
+                    .subscribe();
+            return Mono.just(false);
+        }));
+    }
+
+    /**
+     * Checks if the bot has certain {@link Permission}s in the {@link Guild}.
+     *
+     * @param g           The guild
+     * @param permissions The needed permissions
+     * @return True if the bot has all permissions or false if it doesn't
+     */
+    public static Mono<Boolean> checkForPermissions(Guild g, Permission... permissions){
+        return g.getMemberById(g.getClient().getSelfId().get()).flatMap(m -> m.getBasePermissions().flatMap(perms -> {
+            if(perms.containsAll(PermissionSet.of(permissions)))
+                return Mono.just(true);
+            return Mono.just(false);
+        }));
+    }
+
+    /**
+     * Checks if the bot has certain {@link Permission}s in the {@link GuildMessageChannel}. If it has all of the permissions {@code true} is returned, otherwise a message telling which permissions are needed is sent and {@code false} is returned.
+     *
+     * @param messageChannel The channel to check the permissions and to send the message in
+     * @param permissions    The needed permissions
+     * @return True if the bot has all the permissions or false if it doesn't
+     */
+    public static Mono<Boolean> checkForChannelPermissions(GuildMessageChannel messageChannel, Permission... permissions){
+        return checkForChannelPermissions(messageChannel, messageChannel, permissions);
+    }
+
+    /**
+     * Checks if the bot has certain {@link Permission}s in the {@link GuildChannel}. If it has all of the permissions {@code true} is returned, otherwise a message telling which permissions are needed is sent to the {@link GuildMessageChannel} and {@code false} is returned.
+     *
+     * @param checkChannel   The channel to check the permissions in
+     * @param messageChannel The channel to send the message in if some permission is missing
+     * @param permissions    The needed permissions
+     * @return
+     */
+    public static Mono<Boolean> checkForChannelPermissions(GuildChannel checkChannel, GuildMessageChannel messageChannel, Permission... permissions){
+        return checkChannel.getEffectivePermissions(checkChannel.getClient().getSelfId().get()).flatMap(perms -> {
+            if(perms.containsAll(PermissionSet.of(permissions)))
+                return Mono.just(true);
+            if(messageChannel != null)
+                if(perms.contains(Permission.SEND_MESSAGES))
+                    messageChannel.createMessage("Sorry, but I need following permissions in this channel to perform this action: " + Arrays.stream(permissions).map(p -> p.name()).collect(Collectors.joining(", "))).subscribe();
+            return Mono.just(false);
+        });
+    }
+
+    public static void startAutoBackups(DiscordClient client){
+        Flux.interval(Duration.between(Instant.now(), getTomorrow()), Duration.of(1, ChronoUnit.DAYS))
+                .flatMap(nbr -> Flux.fromIterable(BotCommands.autoBackupGuilds))
+                .flatMap(gId -> client.getGuildById(Snowflake.of(gId)))
+                .doOnNext(g -> {
+                    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneOffset.UTC);
+                    String bId = "Automated backup " + formatter.format(Instant.now()) + " " + createRandomString(6);
+                    DataManager.createGuildBackup(g, bId, true);
+                })
+                .subscribe();
+    }
+
+    /**
+     * Get tomorrows date at 00:00:00 UTC
+     *
+     * @return Tomorrows date
+     */
+    public static Instant getTomorrow(){
+        return LocalDateTime.now().atZone(ZoneOffset.UTC).plusDays(1).withHour(0).withMinute(0).withSecond(0).withNano(0).toInstant();
+    }
+
+    /**
+     * Creates a random string with a certain length containing only a-z, A-Z and 0-9
+     *
+     * @param length The length of the string
+     * @return The random string
+     */
+    public static String createRandomString(int length){
+        String available = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890";
+        StringBuilder sb = new StringBuilder();
+        Random rn = new Random();
+        while(length-- > 0)
+            sb.append(available.charAt(rn.nextInt(available.length())));
+        return sb.toString();
     }
 
 }

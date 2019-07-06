@@ -19,7 +19,7 @@ public class LyricsCrawler {
 
     public Song getSong(String query){
         try {
-            String url = "http://spi.genius.com/search?q=" + URLEncoder.encode(query, "UTF-8");
+            String url = "http://api.genius.com/search?q=" + URLEncoder.encode(query, "UTF-8");
             URL queryURL = new URL(url);
             Connection connection = Jsoup.connect(queryURL.toExternalForm())
                     .header("Authorization", Tokens.GENIUS_TOKEN)

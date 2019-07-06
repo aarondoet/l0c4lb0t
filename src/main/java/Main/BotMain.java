@@ -2,6 +2,7 @@ package Main;
 
 import DataManager.DataManager;
 import Music.MusicManager;
+import WebAPI.HTTPServer;
 import discord4j.core.DiscordClient;
 
 public class BotMain {
@@ -16,6 +17,8 @@ public class BotMain {
         BotEvents.registerEvents(client);
         BotEvents.registerScriptEvents(client);
         DynamicVoiceChannels.initialize(client);
+        BotUtils.startAutoBackups(client);
+        HTTPServer.startServer();
         client.login().block();
     }
 

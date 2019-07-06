@@ -3,6 +3,7 @@ package Scripts;
 import Main.BotMain;
 import Main.BotUtils;
 import Main.LocaleManager;
+import discord4j.core.event.domain.message.MessageCreateEvent;
 import discord4j.core.object.VoiceState;
 import discord4j.core.object.entity.*;
 import discord4j.core.object.util.Image;
@@ -52,7 +53,10 @@ public class ScriptExecutor {
         onChannelDeleted("onChannelDeleted"),
         onCategoryDeleted("onCategoryDeleted"),
         onVoiceChannelDeleted("onVoiceChannelDeleted"),
-        onTextChannelDeleted("onTextChannelDeleted");
+        onTextChannelDeleted("onTextChannelDeleted"),
+        onCommand("onCommand"),
+        onCustomCommand("onCustomCommand"),
+        onUnknownCommand("onUnknownCommand");
 
         private String event;
         ScriptEvent(String event){
@@ -207,6 +211,7 @@ public class ScriptExecutor {
         actions.put("deleteRole", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> args.size() == 1)
                 .flatMap(x -> BotUtils.getRoleFromArgument(g, args.get(0)))
+                .filter(r -> !r.isManaged())
                 .flatMap(r -> r.delete("Deleted by the deleteRole function in a script"))
                 .flatMap(x -> Mono.just(true))
         );
@@ -855,6 +860,30 @@ public class ScriptExecutor {
         replace.put("pinned", "" + m.isPinned());
         replace.put("tts", "" + m.isTts());
         replace.put("mentionseveryone", "" + m.mentionsEveryone());
+    }
+
+    public static void onCommandEvent(MessageCreateEvent e, String[] command, List<String> args, boolean success){
+        Map<String, String> replace = new HashMap<>();
+        addChannelVariables(replace, e.getMessage().getChannel().ofType(GuildMessageChannel.class).block());
+        addMessageVariables(replace, e.getMessage());
+        addMemberVariables(replace, e.getMember().get());
+        replace.put("argcount", "" + args.size());
+        for(int i = 0; i < args.size(); i++)
+            replace.put("arg" + (i+1), args.get(i));
+    }
+
+    public static void onCustomCommandEvent(MessageCreateEvent e, String command){
+        Map<String, String> replace = new HashMap<>();
+        addChannelVariables(replace, e.getMessage().getChannel().ofType(GuildMessageChannel.class).block());
+        addMessageVariables(replace, e.getMessage());
+        addMemberVariables(replace, e.getMember().get());
+    }
+
+    public static void onUnknownCommand(MessageCreateEvent e){
+        Map<String, String> replace = new HashMap<>();
+        addChannelVariables(replace, e.getMessage().getChannel().ofType(GuildMessageChannel.class).block());
+        addMessageVariables(replace, e.getMessage());
+        addMemberVariables(replace, e.getMember().get());
     }
 
 }
