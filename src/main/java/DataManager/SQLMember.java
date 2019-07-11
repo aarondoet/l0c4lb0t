@@ -4,16 +4,18 @@ import java.time.Instant;
 
 public class SQLMember {
 
-    private long userId;
-    private long guildId;
-    private boolean nicked;
-    private String guildName;
-    private Instant joinedAt;
-    private int sentMessageCount;
-    private int sentCommandCount;
-    private int sentPublicMessageCount;
-    private int sentUnknownCommandCount;
-    private int sentCustomCommandCount;
+    private long userId = 0L;
+    private long guildId = 0L;
+    private boolean nicked = false;
+    private String guildName = "";
+    private Instant joinedAt = Instant.MIN;
+    private int sentMessageCount = 0;
+    private int sentCommandCount = 0;
+    private int sentPublicMessageCount = 0;
+    private int sentUnknownCommandCount = 0;
+    private int sentCustomCommandCount = 0;
+
+    public SQLMember(){}
 
     public SQLMember(long userId, long guildId, boolean nicked, String guildName, Instant joinedAt, int sentMessageCount, int sentCommandCount, int sentPublicMessageCount, int sentUnknownCommandCount, int sentCustomCommandCount) {
         this.userId = userId;

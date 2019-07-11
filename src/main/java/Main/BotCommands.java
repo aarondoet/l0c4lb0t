@@ -854,12 +854,12 @@ public class BotCommands {
                         if(type == null) return Mono.just(false);
                         String title = args.get(2);
                         String content = String.join(" ", args.subList(3, args.size()));
-                        int suggestionId = DataManager.addSuggestion(e.getGuildId().get().asLong(), e.getMessage().getAuthor().get().getId().asLong(), title, content, e.getMessage().getTimestamp(), type);
-                        if(suggestionId > -1) {
-                            DataManager.setSuggestionNotification(e.getGuildId().get().asLong(), e.getMessage().getAuthor().get().getId().asLong(), suggestionId, true);
-                            c.createMessage("created suggestion with id " + suggestionId).subscribe();
+                        SQLFeedback suggestion = DataManager.addSuggestion(e.getGuildId().get().asLong(), e.getMessage().getAuthor().get().getId().asLong(), title, content, e.getMessage().getTimestamp(), type);
+                        if(suggestion != null) {
+                            DataManager.setSuggestionNotification(e.getGuildId().get().asLong(), e.getMessage().getAuthor().get().getId().asLong(), suggestion.getId(), true);
+                            c.createMessage("created suggestion with id " + suggestion.getId()).subscribe();
                             e.getClient().getChannelById(Snowflake.of(DataManager.getGuild(e.getGuildId().get().asLong()).getSuggestionChannelId())).ofType(GuildMessageChannel.class).flatMap(tc -> tc.createEmbed(ecs -> ecs
-                                    .setTitle("New Suggestion #" + suggestionId)
+                                    .setTitle("New Suggestion #" + suggestion.getId())
                                     .addField(title, content, false)
                                     .setAuthor(e.getMessage().getAuthor().get().getUsername() + "#" + e.getMessage().getAuthor().get().getDiscriminator(), null, e.getMessage().getAuthor().get().getAvatarUrl())
                                     .setFooter("Created at", null)

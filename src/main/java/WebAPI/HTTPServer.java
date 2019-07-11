@@ -10,234 +10,215 @@ import discord4j.core.object.entity.Guild;
 import discord4j.core.object.entity.Member;
 import discord4j.core.object.util.Image;
 import discord4j.core.object.util.Snowflake;
+import reactor.core.publisher.Mono;
+import reactor.netty.NettyOutbound;
+import reactor.netty.http.server.HttpServer;
+import reactor.netty.http.server.HttpServerResponse;
 
-import java.io.*;
-import java.net.ServerSocket;
-import java.net.Socket;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicLong;
 
-public class HTTPServer implements Runnable{
+public class HTTPServer {
 
     static final int port = 1337;
 
-    static final boolean verbose = false;
-
-    private Socket connect;
-
-    public HTTPServer(Socket c){
-        connect = c;
-    }
-
-
-
     public static void startServer(){
-        Thread t = new Thread(()->{
-            try{
-                ServerSocket serverConnect = new ServerSocket(port);
-                System.out.println("Server started");
+        HttpServer.create().port(port)
+                .route(routes ->
+                    routes.get("/user/{userId}", (request, response) -> {
+                        Map<String, List<String>> params = getParams(request.uri());
+                        ObjectNode node = new ObjectMapper().createObjectNode();
+                        try{
+                            String token = request.requestHeaders().get("Authorization", "");
+                            SQLGuild guild = DataManager.getGuild(token);
+                            if(guild.getGuildId() == 0L) return error(response, 401);
+                            long uId = Long.parseLong(request.param("userId"));
+                            /*
+                             * NOT ENABLED SINCE MEMBERS ARE NOT SAVED TO THE DATABASE YET
+                             */
+                            // TODO: enable when members are in the database
+                            SQLMember member = DataManager.getMember(guild.getGuildId(), uId);
+                            //if(member.getUserId() == 0L) return error(response, 401);
+                            return success(response)
+                                    .sendByteArray(getGuild(guild.getGuildId()).flatMap(g -> getMember(g, uId).flatMap(m -> {
+                                        node.put("status", 200)
+                                            .set("result", new ObjectMapper().createObjectNode()
+                                                    .put("username", m.getUsername())
+                                                    .put("tag", m.getDiscriminator())
+                                                    .put("nickname", m.getNickname().orElse(null))
+                                                    .put("is_bot", m.isBot())
+                                                    .put("joined_at", m.getJoinTime().toString())
+                                                    .put("premium_time", m.getPremiumTime().isPresent() ? m.getPremiumTime().toString() : null)
+                                                    .put("avatar", m.getAvatarUrl())
+                                                    .put("animated_avatar", m.hasAnimatedAvatar())
 
-                while(true){
-                    HTTPServer myServer = new HTTPServer(serverConnect.accept());
-                    if(verbose)
-                        System.out.println("Connection opened");
-                    Thread thread = new Thread(myServer);
-                    thread.start();
-                }
-            }catch(IOException ex){
-                System.out.println("Server connection error");
-                ex.printStackTrace();
-            }
-        });
-        t.start();
+                                                    .put("sent_message_count", member.getSentMessageCount())
+                                                    .put("sent_command_count", member.getSentCommandCount())
+                                                    .put("sent_unknown_command_count", member.getSentUnknownCommandCount())
+                                                    .put("sent_custom_command_count", member.getSentCustomCommandCount())
+                                                    .put("sent_public_message_count", member.getSentPublicMessageCount())
+                                            );
+                                        return Mono.just(node.toString().getBytes(StandardCharsets.UTF_8));
+                                    }).onErrorReturn("{\"status\":404}".getBytes(StandardCharsets.UTF_8)).onErrorReturn("{\"status\":401}".getBytes(StandardCharsets.UTF_8))));
+                        }catch(NumberFormatException ex){
+                            return error(response, 400);
+                        }
+                    })
+                    .get("/feedback", (request, response) -> {
+                        Map<String, List<String>> params = getParams(request.uri());
+                        ObjectNode node = new ObjectMapper().createObjectNode();
+                        String token = request.requestHeaders().get("Authorization", "");
+                        SQLGuild guild = DataManager.getGuild(token);
+                        if(guild.getGuildId() == 0L) return error(response, 401);
+                        return success(response).sendByteArray(getGuild(guild.getGuildId()).flatMap(g -> {
+                            int items = 20;
+                            int offset = 0;
+                            boolean includeDeleted = false;
+                            List<String> itms = params.get("items");
+                            if(itms != null) if(itms.size() == 1) try{items = Integer.parseInt(itms.get(0));}catch(NumberFormatException ex){}
+                            items = BotUtils.clamp(items, 1, 100);
+                            List<String> offst = params.get("offset");
+                            if(offst != null) if(offst.size() == 1) try{offset = Integer.parseInt(offst.get(0));}catch(NumberFormatException ex){}
+                            if(offset < 0) offset = 0;
+                            List<String> inclDel = params.get("deleted");
+                            if(inclDel != null) if(inclDel.size() == 1) includeDeleted = Boolean.parseBoolean(inclDel.get(0));
+                            List<Integer> feedbackIds = new ArrayList<>();
+                            List<String> feedbckIds = params.get("id");
+                            if(feedbckIds != null) for(String s : feedbckIds) try{int id = Integer.parseInt(s); if(id > 0 && feedbackIds.size() < 100 && !feedbackIds.contains(id)) feedbackIds.add(id);}catch(NumberFormatException ex){}
+
+                            List<SQLFeedback> feedbacks = new ArrayList<>();
+                            if(feedbckIds != null && feedbckIds.size() > 0){
+                                for(int id : feedbackIds){
+                                    SQLFeedback feedback = DataManager.getSuggestion(g.getId().asLong(), id);
+                                    if(feedback != null)
+                                        feedbacks.add(feedback);
+                                }
+                            }else{
+                                feedbacks = DataManager.getFeedback(g.getId().asLong(), items, offset, includeDeleted);
+                            }
+                            ArrayNode n = new ObjectMapper().createArrayNode();
+                            for(SQLFeedback feedback : feedbacks)
+                                n.add(getFeedbackNode(feedback));
+                            node.put("status", 200)
+                                .set("result", n);
+                            return Mono.just(node.toString().getBytes(StandardCharsets.UTF_8));
+                        }).onErrorReturn("{\"status\":401}".getBytes(StandardCharsets.UTF_8)));
+                    })
+                    .get("/guild", (request, response) -> {
+                        Map<String, List<String>> params = getParams(request.uri());
+                        ObjectNode node = new ObjectMapper().createObjectNode();
+                        String token = request.requestHeaders().get("Authorization", "");
+                        SQLGuild guild = DataManager.getGuild(token);
+                        if(guild.getGuildId() == 0L) return error(response, 401);
+                        return success(response).sendByteArray(getGuild(guild.getGuildId()).flatMap(g -> {
+                            node.put("status", 200)
+                                .set("result", new ObjectMapper().createObjectNode()
+                                        .put("guild_id", g.getId().asLong())
+                                        .put("name", g.getName())
+                                        .put("verification_level", g.getVerificationLevel().getValue())
+                                        .put("content_filter_level", g.getContentFilterLevel().getValue())
+                                        .put("owner_id", g.getOwnerId().asLong())
+                                        .put("icon_url", g.getIconUrl(Image.Format.PNG).orElse(null))
+                                        .put("afk_channel_id", g.getAfkChannelId().isPresent() ? g.getAfkChannelId().get().asLong() : null)
+                                        .put("afk_timeout", g.getAfkTimeout())
+                                        .put("join_time", g.getJoinTime().isPresent() ? g.getJoinTime().get().toString() : null)
+                                        .put("banner_url", g.getBannerUrl(Image.Format.PNG).orElse(null))
+                                        .put("mfa_level", g.getMfaLevel().getValue())
+                                        .put("member_count", g.getMemberCount().isPresent() ? g.getMemberCount().getAsInt() : null)
+                                        .put("premium_subscriptions_count", g.getPremiumSubcriptionsCount().isPresent() ? g.getPremiumSubcriptionsCount().getAsInt() : null)
+                                        .put("premium_tier", g.getPremiumTier().getValue())
+                                        .put("region", g.getRegionId())
+
+                                        .put("bot_prefix", guild.getBotPrefix())
+                                        .put("delete_invites", guild.getDeleteInvites())
+                                        .put("invite_warning", guild.getInviteWarning())
+                                        .put("unknown_command_message", guild.getUnknownCommandMessage())
+                                        .put("language", guild.getLanguage())
+                                        .put("suggestion_channel_id", guild.getSuggestionChannelId())
+                                        .put("ban_message", guild.getBanMessage())
+                                        .put("join_message", guild.getJoinMessage())
+                                        .put("join_role", guild.getJoinRole())
+                                        .put("leave_message", guild.getLeaveMessage())
+                                        .put("sent_command_count", guild.getSentCommandCount())
+                                        .put("sent_custom_command_count", guild.getSentCustomCommandCount())
+                                        .put("sent_message_count", guild.getSentMessageCount())
+                                        .put("sent_public_message_count", guild.getSentPublicMessageCount())
+                                        .put("sent_unknown_command_count", guild.getSentUnknownCommandCount())
+                                );
+                            return Mono.just(node.toString().getBytes(StandardCharsets.UTF_8));
+                        }).onErrorReturn("{\"status\":401}".getBytes(StandardCharsets.UTF_8)));
+                    })
+
+
+                            /*
+                             * Header:
+                             * Feedback-user: The user id ("unknown", "0" or id of an existing user)
+                             * Feedback-title: The title (min length: 3)
+                             * Feedback-content: The description (min length: 10)
+                             * Feedback-type: The type (number or text, default: OTHER)
+                             */
+                            .post("/feedback", (request, response) -> {
+                        Map<String, List<String>> params = getParams(request.uri());
+                        ObjectNode node = new ObjectMapper().createObjectNode();
+                        String token = request.requestHeaders().get("Authorization", "");
+                        SQLGuild guild = DataManager.getGuild(token);
+                        if(guild.getGuildId() == 0L) return error(response, 401);
+                        return success(response).sendByteArray(getGuild(guild.getGuildId()).flatMap(g -> {
+                            AtomicLong uId = new AtomicLong(0L);
+                            try{
+                                String userId = request.requestHeaders().get("Feedback-user");
+                                if(userId == null) return Mono.just("{\"status\":400}".getBytes(StandardCharsets.UTF_8));
+                                if(!userId.equalsIgnoreCase("unknown")){
+                                    uId.set(Long.parseLong(userId));
+                                }
+                            }catch(NumberFormatException ex){
+                                return Mono.just("{\"status\":400}".getBytes(StandardCharsets.UTF_8));
+                            }
+                            String title = request.requestHeaders().get("Feedback-title", "");
+                            String content = request.requestHeaders().get("Feedback-content", "");
+                            if(title.length() < 3 || content.length() < 10)
+                                return Mono.just("{\"status\":400}".getBytes(StandardCharsets.UTF_8));
+                            Instant createdAt = Instant.now();
+                            SQLFeedback.FeedbackType type = SQLFeedback.FeedbackType.getFeedbackType(request.requestHeaders().get("Feedback-type", "OTHER"), SQLFeedback.FeedbackType.OTHER);
+                            /*SQLFeedback feedback = DataManager.addSuggestion(g.getId().asLong(), uId.get(), title, content, createdAt, type);
+                            node.put("status", 200)
+                                .set("result", getFeedbackNode(feedback));*/
+                            if(uId.get() == 0L){
+                                node.put("title", title)
+                                        .put("content", content)
+                                        .put("created_at", createdAt.toString())
+                                        .put("type", type.getValue())
+                                        .put("user", uId.get())
+                                ;
+                                return Mono.just(node.toString().getBytes(StandardCharsets.UTF_8));
+                            }else{
+                                return BotMain.client.getUserById(Snowflake.of(uId.get())).onErrorResume(err->Mono.empty()).flatMap(u -> {
+                                    node.put("title", title)
+                                            .put("content", content)
+                                            .put("created_at", createdAt.toString())
+                                            .put("type", type.getValue())
+                                            .put("user", u.getId().asLong())
+                                    ;
+                                    return Mono.just(node.toString().getBytes(StandardCharsets.UTF_8));
+                                }).switchIfEmpty(Mono.just("{\"status\":404}".getBytes(StandardCharsets.UTF_8)));
+                            }
+                        }).onErrorReturn("{\"status\":401}".getBytes(StandardCharsets.UTF_8)));
+                    })
+                )
+                .bindNow();
     }
 
-
-
-    @Override
-    public void run(){
-        BufferedReader in = null;
-        PrintWriter out = null;
-        BufferedOutputStream dataOut = null;
-        String fileRequested = null;
-        try {
-            in = new BufferedReader(new InputStreamReader(connect.getInputStream()));
-            out = new PrintWriter(connect.getOutputStream());
-            dataOut = new BufferedOutputStream(connect.getOutputStream());
-
-            String input = in.readLine();
-            StringTokenizer parse = new StringTokenizer(input);
-            String method = parse.nextToken().toUpperCase();
-            fileRequested = parse.nextToken().toLowerCase();
-
-            Map<String, List<String>> params = new HashMap<>();
-            String[] urlParts = fileRequested.split("\\?");
-            if(urlParts.length > 1){
-                String query = urlParts[1];
-                fileRequested = urlParts[0];
-                for(String param : query.split("&")){
-                    String[] pair = param.split("=");
-                    String key = URLDecoder.decode(pair[0], StandardCharsets.UTF_8);
-                    String value = "";
-                    if(pair.length > 1)
-                        value = URLDecoder.decode(pair[1], StandardCharsets.UTF_8);
-                    List<String> values = params.get(key);
-                    if(values == null){
-                        values = new ArrayList<>();
-                        params.put(key, values);
-                    }
-                    values.add(value);
-                }
-            }
-
-            boolean unauthorized = false;
-
-            String write = "{\"success\":false}";
-            List<String> authTokens = params.get("auth");
-            if(authTokens == null) unauthorized = true;
-            else if(authTokens.size() != 1) unauthorized = true;
-            else write = getReturnString(params.get("auth").get(0), fileRequested, method, params);
-
-            if(write.length() == 0) unauthorized = true;
-            //if(unauthorized) write = "auth=j%5Dnure)%5D6%3AU%2Czf9K5HVz%2CrNau§%2F(z3d%26-%3DuA9_%5DR>)-%2CfvU%26%7D%24%24_c";
-
-            byte[] fileData = write.getBytes(StandardCharsets.UTF_8);
-            int length = fileData.length;
-            String contentType = "application/json";
-
-            if(unauthorized) out.println("HTTP/1.1 401 Unauthorized");
-            else out.println("HTTP/1.1 200 OK");
-            out.println("Server: Java HTTP Server: 1.0");
-            out.println("Date: " + new Date());
-            out.println("Content-type: " + contentType);
-            out.println("Content-length: " + length);
-            out.println();
-            out.flush();
-
-            dataOut.write(fileData, 0, length);
-            dataOut.flush();
-        }catch(IOException ex){
-            System.out.println("Server error");
-            ex.printStackTrace();
-        }finally{
-            try{
-                in.close();
-                out.close();
-                dataOut.close();
-                connect.close();
-            }catch(Exception ex){
-                System.out.println("Error closing stream");
-                ex.printStackTrace();
-            }
-            if(verbose)
-                System.out.println("Connection closed\n");
-        }
+    public static Mono<Guild> getGuild(long gId){
+        return BotMain.client.getGuildById(Snowflake.of(gId)).onErrorResume(err->Mono.empty());
+    }
+    public static Mono<Member> getMember(Guild g, long mId){
+        return g.getMemberById(Snowflake.of(mId)).onErrorResume(err->Mono.empty());
     }
 
-    private String getReturnString(String guildAuth, String requested, String type, Map<String, List<String>> params){
-        SQLGuild guild = DataManager.getGuild(guildAuth);
-        if(guild.getGuildId() == 0L) return "";
-        Guild g = BotMain.client.getGuildById(Snowflake.of(guild.getGuildId())).block();
-        if(g == null) return "";
-
-        ObjectNode node = new ObjectMapper().createObjectNode()
-                .put("guild_id", g.getId().asLong());
-        if(type.equals("GET")){
-            if(requested.startsWith("/user/")){
-                requested = requested.substring(6);
-                Member m = BotUtils.getMemberFromArgument(g, requested).block();
-                if(m == null) return new ObjectMapper().createObjectNode()
-                        .put("success", false)
-                        .toString();
-                SQLMember sm = DataManager.getMember(m.getGuildId().asLong(), m.getId().asLong());
-
-                node    .put("username", m.getUsername())
-                        .put("tag", m.getDiscriminator())
-                        .put("nickname", m.getNickname().orElse(null))
-                        .put("is_bot", m.isBot())
-                        .put("joined_at", m.getJoinTime().toString())
-                        .put("premium_time", m.getPremiumTime().isPresent() ? m.getPremiumTime().toString() : null)
-                        .put("avatar", m.getAvatarUrl())
-                        .put("animated_avatar", m.hasAnimatedAvatar())
-                ;
-            }else if(requested.equals("/feedback")){
-                /*
-                    Parameters:
-                    offset = how many items should get skipped, default 0
-                    items = how many items should get returned, default 20, max 100
-                    deleted = whether deleted items should be included, default false
-                    id = the id of the element you want, can be used multiple times but not more than 50 times
-                 */
-                int items = 20;
-                int offset = 0;
-                boolean includeDeleted = false;
-                List<String> itms = params.get("items");
-                if(itms != null) if(itms.size() == 1) try{items = Integer.parseInt(itms.get(0));}catch(NumberFormatException ex){}
-                items = BotUtils.clamp(items, 1, 100);
-                List<String> offst = params.get("offset");
-                if(offst != null) if(offst.size() == 1) try{offset = Integer.parseInt(offst.get(0));}catch(NumberFormatException ex){}
-                if(offset < 0) offset = 0;
-                List<String> inclDel = params.get("deleted");
-                if(inclDel != null) if(inclDel.size() == 1) includeDeleted = Boolean.parseBoolean(inclDel.get(0));
-                List<Integer> feedbackIds = new ArrayList<>();
-                List<String> feedbckIds = params.get("id");
-                if(feedbckIds != null) for(String s : feedbckIds) try{int id = Integer.parseInt(s); if(id > 0 && feedbackIds.size() < 100 && !feedbackIds.contains(id)) feedbackIds.add(id);}catch(NumberFormatException ex){}
-
-                List<SQLFeedback> feedbacks = new ArrayList<>();
-                if(feedbckIds != null && feedbckIds.size() > 0){
-                    for(int id : feedbackIds){
-                        SQLFeedback feedback = DataManager.getSuggestion(g.getId().asLong(), id);
-                        if(feedback != null)
-                            feedbacks.add(feedback);
-                    }
-                }else{
-                    feedbacks = DataManager.getFeedback(g.getId().asLong(), items, offset, includeDeleted);
-                }
-                ArrayNode n = new ObjectMapper().createArrayNode();
-                for(SQLFeedback feedback : feedbacks)
-                    n.add(getFeedbackNode(feedback));
-                return n.toString();
-            }else if(requested.equals("/guild")){
-                node.put("guild_id", g.getId().asLong())
-                        .put("name", g.getName())
-                        .put("verification_level", g.getVerificationLevel().getValue())
-                        .put("content_filter_level", g.getContentFilterLevel().getValue())
-                        .put("owner_id", g.getOwnerId().asLong())
-                        .put("icon_url", g.getIconUrl(Image.Format.PNG).orElse(null))
-                        .put("afk_channel_id", g.getAfkChannelId().isPresent() ? g.getAfkChannelId().get().asLong() : null)
-                        .put("afk_timeout", g.getAfkTimeout())
-                        .put("join_time", g.getJoinTime().isPresent() ? g.getJoinTime().get().toString() : null)
-                        .put("banner_url", g.getBannerUrl(Image.Format.PNG).orElse(null))
-                        .put("mfa_level", g.getMfaLevel().getValue())
-                        .put("member_count", g.getMemberCount().isPresent() ? g.getMemberCount().getAsInt() : null)
-                        .put("premium_subscriptions_count", g.getPremiumSubcriptionsCount().isPresent() ? g.getPremiumSubcriptionsCount().getAsInt() : null)
-                        .put("premium_tier", g.getPremiumTier().getValue())
-                        .put("region", g.getRegionId())
-
-                        .put("bot_prefix", guild.getBotPrefix())
-                        .put("delete_invites", guild.getDeleteInvites())
-                        .put("invite_warning", guild.getInviteWarning())
-                        .put("unknown_command_message", guild.getUnknownCommandMessage())
-                        .put("language", guild.getLanguage())
-                        .put("suggestion_channel_id", guild.getSuggestionChannelId())
-                        .put("ban_message", guild.getBanMessage())
-                        .put("join_message", guild.getJoinMessage())
-                        .put("join_role", guild.getJoinRole())
-                        .put("leave_message", guild.getLeaveMessage())
-                        .put("sent_command_count", guild.getSentCommandCount())
-                        .put("sent_custom_command_count", guild.getSentCustomCommandCount())
-                        .put("sent_message_count", guild.getSentMessageCount())
-                        .put("sent_public_message_count", guild.getSentPublicMessageCount())
-                        .put("sent_unknown_command_count", guild.getSentUnknownCommandCount())
-                ;
-            }
-        }
-
-        return node.toString();
-    }
-
-    private ObjectNode getFeedbackNode(SQLFeedback feedback){
+    private static ObjectNode getFeedbackNode(SQLFeedback feedback){
         if(feedback == null) return new ObjectMapper().createObjectNode();
         return new ObjectMapper().createObjectNode()
                 .put("guild_id", feedback.getGuildId())
@@ -251,6 +232,40 @@ public class HTTPServer implements Runnable{
                 .put("last_update", feedback.getLastUpdate().toString())
                 .put("type", feedback.getType().getValue())
                 ;
+    }
+
+    public static NettyOutbound error(HttpServerResponse response, int status){
+        return response
+                .header("Connection", "Close")
+                .header("Content-type", "application/json")
+                .sendByteArray(Mono.just(("{\"status\":" + status + "}").getBytes(StandardCharsets.UTF_8)));
+    }
+
+    public static NettyOutbound success(HttpServerResponse response){
+        return response.header("Content-type", "application/json")
+                .header("Connection", "Close");
+    }
+
+    public static Map<String, List<String>> getParams(String url){
+        int index = url.indexOf('?');
+        Map<String, List<String>> params = new HashMap<>();
+        if(index > 0){
+            String query = url.substring(index+1);
+            for(String param : query.split("&")){
+                String[] pair = param.split("=");
+                String key = URLDecoder.decode(pair[0], StandardCharsets.UTF_8);
+                String value = "";
+                if(pair.length > 1)
+                    value = URLDecoder.decode(pair[1], StandardCharsets.UTF_8);
+                List<String> values = params.get(key);
+                if(values == null){
+                    values = new ArrayList<>();
+                    params.put(key, values);
+                }
+                values.add(value);
+            }
+        }
+        return params;
     }
 
 }

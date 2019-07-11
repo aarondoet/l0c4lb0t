@@ -381,7 +381,7 @@ public class DataManager {
     }
 
     private static String generateToken(){
-        String available = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890-.,_:;!\"§$%&/()=?+~#<>|{}[]";
+        String available = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890-.,_:;!\"$%&/()=?+~#<>|{}[]";
         StringBuilder token = new StringBuilder("");
         Random rn = new Random();
         int length = rn.nextInt(10) + 50;
@@ -668,7 +668,7 @@ public class DataManager {
         Connection con = null;
         PreparedStatement stmt = null;
         ResultSet rs = null;
-        SQLMember m = null;
+        SQLMember m = new SQLMember();
         try {
             con = getConnection();
             stmt = con.prepareStatement("SELECT * FROM " + Table.MEMBERS.getName() + " WHERE guild_id=? AND user_id=? LIMIT 1");
@@ -1366,12 +1366,12 @@ public class DataManager {
         return success;
     }
 
-    public static int addSuggestion(Long gId, Long uId, String title, String content, Instant createdAt, SQLFeedback.FeedbackType type){
+    public static SQLFeedback addSuggestion(Long gId, Long uId, String title, String content, Instant createdAt, SQLFeedback.FeedbackType type){
         Connection con = null;
         PreparedStatement stmt = null;
         PreparedStatement stmt2 = null;
         ResultSet rs = null;
-        int suggestionId = -1;
+        SQLFeedback suggestion = null;
         try {
             con = getConnection();
             stmt = con.prepareStatement("INSERT INTO " + Table.SUGGESTIONS.getName() + " (id, user_id, title, content, created_at, status, detailed_status, last_update, guild_id, type) VALUES ((SELECT count FROM (SELECT MAX(id) AS count FROM " + Table.SUGGESTIONS.getName() + " WHERE guild_id=?) AS cnt)+1, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
@@ -1386,11 +1386,24 @@ public class DataManager {
             stmt.setLong(9, gId);
             stmt.setInt(10, type.getValue());
             stmt.executeUpdate();
-            stmt2 = con.prepareStatement("SELECT * FROM " + Table.SUGGESTIONS.getName() + " WHERE guild_id=? ORDER BY id DESC LIMIT 1");
+            stmt2 = con.prepareStatement("SELECT * FROM " + Table.SUGGESTIONS.getName() + " WHERE guild_id=? AND user_id=? AND created_at=? ORDER BY id DESC LIMIT 1");
             stmt2.setLong(1, gId);
+            stmt2.setLong(2, uId);
+            stmt2.setTimestamp(3, Timestamp.from(createdAt));
             rs = stmt2.executeQuery();
             if(rs.next())
-                suggestionId = rs.getInt("id");
+                suggestion = new SQLFeedback(
+                        rs.getLong("guild_id"),
+                        rs.getString("title"),
+                        rs.getString("content"),
+                        rs.getByte("status"),
+                        rs.getString("detailed_status"),
+                        rs.getInt("id"),
+                        rs.getLong("user_id"),
+                        rs.getTimestamp("created_at").toInstant(),
+                        rs.getTimestamp("last_update").toInstant(),
+                        SQLFeedback.FeedbackType.getByValue(rs.getInt("type"))
+                );
         }catch (SQLException ex){
             ex.printStackTrace();
         }finally {
@@ -1399,7 +1412,7 @@ public class DataManager {
             DbUtils.closeQuietly(stmt2);
             DbUtils.closeQuietly(con);
         }
-        return suggestionId;
+        return suggestion;
     }
     public static SQLFeedback getSuggestion(Long gId, int sId){
         Connection con = null;

@@ -42,6 +42,10 @@ public class SQLFeedback{
                     return t;
             return null;
         }
+        public static FeedbackType getFeedbackType(String val, FeedbackType defaultValue){
+            FeedbackType t = getFeedbackType(val);
+            if(t == null) return defaultValue; else return t;
+        }
     }
 
     private long guildId = 0L;
