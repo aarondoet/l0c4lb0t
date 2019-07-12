@@ -86,7 +86,7 @@ public class BotEvents {
                                                 .flatMap(cmd -> e.getMessage().getChannel()
                                                         .flatMap(c -> c.createMessage(mcs -> mcs.setContent(cmd.getValue())))
                                                         .doOnNext(x -> ScriptExecutor.onCustomCommandEvent(e, cmd.getKey()))
-                                                        .flatMap(x -> Mono.just(true))
+                                                        .map(x -> true)
                                                 )
                                         )
                                         // no command found
@@ -96,7 +96,7 @@ public class BotEvents {
                                                 .filter(em -> em.trim().length() > 0)
                                                 .flatMap(em -> e.getMessage().getChannel()
                                                         .flatMap(c -> c.createMessage(mcs -> mcs.setContent(em)))
-                                                        .flatMap(x -> Mono.just(true))
+                                                        .map(x -> true)
                                                 )
                                         )
                                         .next()

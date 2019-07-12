@@ -41,11 +41,11 @@ public class BotCommands {
     static {
         commands.put(new String[]{"ping"}, (e, pref, args, lang) -> e.getMessage().getChannel()
                 .flatMap(c -> c.createMessage("pong"))
-                .flatMap(c -> Mono.just(true))
+                .map(c -> true)
         );
         commands.put(new String[]{"test2"}, (e, pref, args, lang) -> e.getMessage().getChannel()
                 .flatMap(c -> c.createMessage("Args: " + args.toString()))
-                .flatMap(c -> Mono.just(true))
+                .map(c -> true)
         );
         commands.put(new String[]{"prefix", "pref"}, (e, pref, args, lang) -> e.getMessage().getChannel()
                 .flatMap(c -> {
@@ -575,11 +575,11 @@ public class BotCommands {
         commands.put(new String[]{"remind"}, (e, prefix, args, lang) -> Mono.just(true));
         commands.put(new String[]{"cat"}, (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .flatMap(c -> c.createMessage(SFWUtils.getCat()))
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         commands.put(new String[]{"dog", "doggo", "goodboi"}, (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .flatMap(c -> c.createMessage(SFWUtils.getDog()))
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
 
         /* MUSIC COMMANDS */
@@ -594,7 +594,7 @@ public class BotCommands {
                                 )
                         )
                 )
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         commands.put(new String[]{"stop"}, (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .flatMap(c -> Mono.justOrEmpty(MusicManager.getGuildConnection(e.getGuildId().get().asLong()))
@@ -603,7 +603,7 @@ public class BotCommands {
                             return Mono.just(vcon);
                         })
                 )
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         commands.put(new String[]{"play"}, (e, prefix, args, lang) -> Mono.just(true));
         commands.put(new String[]{"skip"}, (e, prefix, args, lang) -> Mono.just(true));
@@ -926,33 +926,33 @@ public class BotCommands {
         commands.put(new String[]{"boobs", "boob"}, (e, prefix, args, lang) -> e.getMessage().getChannel().ofType(GuildMessageChannel.class)
                 .filter(BotUtils::checkChannelForNSFW)
                 .flatMap(c -> c.createMessage(NSFWUtils.getBoobs()))
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         commands.put(new String[]{"ass", "arse"}, (e, prefix, args, lang) -> e.getMessage().getChannel().ofType(GuildMessageChannel.class)
                 .filter(BotUtils::checkChannelForNSFW)
                 .flatMap(c -> c.createMessage(NSFWUtils.getAss()))
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         commands.put(new String[]{"asian"}, (e, prefix, args, lang) -> e.getMessage().getChannel().ofType(GuildMessageChannel.class)
                 .filter(BotUtils::checkChannelForNSFW)
                 .flatMap(c -> c.createMessage(NSFWUtils.getAsian()))
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         commands.put(new String[]{"neko", "nekos"}, (e, prefix, args, lang) -> e.getMessage().getChannel().ofType(GuildMessageChannel.class)
                 .filter(BotUtils::checkChannelForNSFW)
                 .flatMap(c -> c.createMessage(NSFWUtils.getNeko()))
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
 
         commands.put(new String[]{"pussy"}, (e, prefix, args, lang) -> e.getMessage().getChannel().ofType(GuildMessageChannel.class)
                 .filter(BotUtils::checkChannelForNSFW)
                 .flatMap(c -> c.createMessage(SFWUtils.getCat()))
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         commands.put(new String[]{"cock"}, (e, prefix, args, lang) -> e.getMessage().getChannel().ofType(GuildMessageChannel.class)
                 .filter(BotUtils::checkChannelForNSFW)
                 .flatMap(c -> c.createMessage(SFWUtils.getCock()))
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
 
         commands.put(new String[]{"backup", "backups"}, (e, prefix, args, lang) -> e.getMessage().getChannel()

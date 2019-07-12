@@ -82,7 +82,7 @@ public class ScriptExecutor {
                                 .filter(m -> varName != null)
                                 .flatMap(m -> Mono.justOrEmpty(variables.put(varName, m.getId().asString())))
                         )
-                ).flatMap(x -> Mono.just(true))
+                ).map(x -> true)
         );
         actions.put("editMessage", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> varName != null)
@@ -92,7 +92,7 @@ public class ScriptExecutor {
                                 .flatMap(m -> m.edit(BotUtils.jsonToMessageEdit(args.get(2))))
                         )
                 )
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("deleteMessage", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> varName != null)
@@ -102,7 +102,7 @@ public class ScriptExecutor {
                                 .flatMap(m -> m.delete("A script ran the delete command on this message."))
                         )
                 )
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("sendDM", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> args.size() == 2)
@@ -111,7 +111,7 @@ public class ScriptExecutor {
                                 .flatMap(c -> c.createMessage(BotUtils.jsonToMessage(args.get(1))))
                         )
                 )
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("giveRole", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> args.size() == 2)
@@ -120,7 +120,7 @@ public class ScriptExecutor {
                                 .flatMap(r -> m.addRole(r.getId(), "Role added by the giveRole function in a script"))
                         )
                 )
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("removeRole", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> args.size() == 2)
@@ -129,40 +129,40 @@ public class ScriptExecutor {
                                 .flatMap(r -> m.removeRole(r.getId(), "Role removed by the removeRole function in a script"))
                         )
                 )
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("setNickname", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> args.size() == 2)
                 .flatMap(x -> BotUtils.getMemberFromArgument(g, args.get(0))
                         .flatMap(m -> m.edit(gmes -> gmes.setNickname(args.get(1).length() > 32 ? args.get(1).substring(0, 32) : args.get(1))))
                 )
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("resetNickname", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> args.size() == 1)
                 .flatMap(x -> BotUtils.getMemberFromArgument(g, args.get(0))
                         .flatMap(m -> m.edit(gmes -> gmes.setNickname(null)))
                 )
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("kick", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> args.size() == 1 || args.size() == 2)
                 .flatMap(x -> BotUtils.getMemberFromArgument(g, args.get(0))
                         .flatMap(m -> m.kick(args.size() == 2 ? args.get(1) : null))
                 )
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("ban", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> args.size() == 1 || args.size() == 2)
                 .flatMap(x -> BotUtils.getUserFromArgument(args.get(0)))
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("unban", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> args.size() == 1 || args.size() == 2)
                 .flatMap(x -> BotUtils.getUserFromArgument(args.get(0))
                         .flatMap(u -> g.unban(u.getId(), args.size() == 2 ? args.get(1) : null))
                 )
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("clearReactions", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> varName != null)
@@ -172,7 +172,7 @@ public class ScriptExecutor {
                                 .flatMap(m -> m.removeAllReactions())
                         )
                 )
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("createRole", (g, args, variables, varName) -> Mono.just(g)
                 .flatMap(x -> g.createRole(rcs -> {
@@ -206,14 +206,14 @@ public class ScriptExecutor {
                 }))
                 .filter(r -> varName != null)
                 .flatMap(r -> Mono.justOrEmpty(variables.put(varName, r.getId().asString())))
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("deleteRole", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> args.size() == 1)
                 .flatMap(x -> BotUtils.getRoleFromArgument(g, args.get(0)))
                 .filter(r -> !r.isManaged())
                 .flatMap(r -> r.delete("Deleted by the deleteRole function in a script"))
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("createTextChannel", (g, args, variables, varName) -> {return Mono.just(true);});
         actions.put("createVoiceChannel", (g, args, variables, varName) -> {return Mono.just(true);});
@@ -234,14 +234,14 @@ public class ScriptExecutor {
                 .flatMap(x -> BotUtils.getChannelFromArgument(g, args.get(0)).ofType(TextChannel.class))
                 .flatMap(c -> c.getMessageById(Snowflake.of(args.get(1))))
                 .flatMap(m -> m.pin())
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("unpinMessage", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> args.size() == 2)
                 .flatMap(x -> BotUtils.getChannelFromArgument(g, args.get(0)).ofType(TextChannel.class))
                 .flatMap(c -> c.getMessageById(Snowflake.of(args.get(1))))
                 .flatMap(m -> m.unpin())
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
 
 
@@ -264,51 +264,51 @@ public class ScriptExecutor {
 
         actions.put("continueIfEquals", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> args.size() == 2)
-                .flatMap(x -> Mono.just(args.get(0).equals(args.get(1))))
+                .map(x -> args.get(0).equals(args.get(1)))
         );
         actions.put("breakIfEquals", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> args.size() == 2)
-                .flatMap(x -> Mono.just(!args.get(0).equals(args.get(1))))
+                .map(x -> !args.get(0).equals(args.get(1)))
         );
         actions.put("continueIfEqualsIgnoreCase", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> args.size() == 2)
-                .flatMap(x -> Mono.just(args.get(0).equalsIgnoreCase(args.get(1))))
+                .map(x -> args.get(0).equalsIgnoreCase(args.get(1)))
         );
         actions.put("breakIfEqualsIgnoreCase", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> args.size() == 2)
-                .flatMap(x -> Mono.just(!args.get(0).equalsIgnoreCase(args.get(1))))
+                .map(x -> !args.get(0).equalsIgnoreCase(args.get(1)))
         );
         actions.put("continueIfStartsWith", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> args.size() == 2)
-                .flatMap(x -> Mono.just(args.get(0).startsWith(args.get(1))))
+                .map(x -> args.get(0).startsWith(args.get(1)))
         );
         actions.put("breakIfStartsWith", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> args.size() == 2)
-                .flatMap(x -> Mono.just(!args.get(0).startsWith(args.get(1))))
+                .map(x -> !args.get(0).startsWith(args.get(1)))
         );
         actions.put("continueIfEndsWith", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> args.size() == 2)
-                .flatMap(x -> Mono.just(args.get(0).endsWith(args.get(1))))
+                .map(x -> args.get(0).endsWith(args.get(1)))
         );
         actions.put("breakIfEndsWith", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> args.size() == 2)
-                .flatMap(x -> Mono.just(!args.get(0).endsWith(args.get(1))))
+                .map(x -> !args.get(0).endsWith(args.get(1)))
         );
         actions.put("continueIfContains", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> args.size() == 2)
-                .flatMap(x -> Mono.just(args.get(0).contains(args.get(1))))
+                .map(x -> args.get(0).contains(args.get(1)))
         );
         actions.put("breakIfContains", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> args.size() == 2)
-                .flatMap(x -> Mono.just(!args.get(0).contains(args.get(1))))
+                .map(x -> !args.get(0).contains(args.get(1)))
         );
         actions.put("continueIfMatches", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> args.size() == 2)
-                .flatMap(x -> Mono.just(Pattern.matches(args.get(1), args.get(0))))
+                .map(x -> Pattern.matches(args.get(1), args.get(0)))
         );
         actions.put("breakIfMatches", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> args.size() == 2)
-                .flatMap(x -> Mono.just(!Pattern.matches(args.get(1), args.get(0))))
+                .map(x -> !Pattern.matches(args.get(1), args.get(0)))
         );
         actions.put("continueIfMentions", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> args.size() == 3)
@@ -352,7 +352,7 @@ public class ScriptExecutor {
                 .filter(x -> args.size() == 2)
                 .flatMap(x -> BotUtils.getChannelFromArgument(g, args.get(0)).ofType(TextChannel.class)
                         .flatMap(c -> c.getMessageById(Snowflake.of(args.get(1)))
-                                .flatMap(m -> Mono.just(!m.getAttachments().isEmpty()))
+                                .map(m -> !m.getAttachments().isEmpty())
                         )
                 )
         );
@@ -360,7 +360,7 @@ public class ScriptExecutor {
                 .filter(x -> args.size() == 2)
                 .flatMap(x -> BotUtils.getChannelFromArgument(g, args.get(0)).ofType(TextChannel.class)
                         .flatMap(c -> c.getMessageById(Snowflake.of(args.get(1)))
-                                .flatMap(m -> Mono.just(m.getAttachments().isEmpty()))
+                                .map(m -> m.getAttachments().isEmpty())
                         )
                 )
         );
@@ -368,7 +368,7 @@ public class ScriptExecutor {
                 .filter(x -> args.size() == 2)
                 .flatMap(x -> BotUtils.getChannelFromArgument(g, args.get(0)).ofType(TextChannel.class)
                         .flatMap(c -> c.getMessageById(Snowflake.of(args.get(1)))
-                                .flatMap(m -> Mono.just(!m.getEmbeds().isEmpty()))
+                                .map(m -> !m.getEmbeds().isEmpty())
                         )
                 )
         );
@@ -376,7 +376,7 @@ public class ScriptExecutor {
                 .filter(x -> args.size() == 2)
                 .flatMap(x -> BotUtils.getChannelFromArgument(g, args.get(0)).ofType(TextChannel.class)
                         .flatMap(c -> c.getMessageById(Snowflake.of(args.get(1)))
-                                .flatMap(m -> Mono.just(m.getEmbeds().isEmpty()))
+                                .map(m -> m.getEmbeds().isEmpty())
                         )
                 )
         );
@@ -396,7 +396,9 @@ public class ScriptExecutor {
                             if(vs == null) return Mono.just(false);
                             Optional<Snowflake> cId = vs.getChannelId();
                             if(!cId.isPresent()) return Mono.just(false);
-                            return Mono.just(cId.get().asLong() == BotUtils.getChannelFromArgument(g, args.get(1)).block().getId().asLong());
+                            GuildChannel c = BotUtils.getChannelFromArgument(g, args.get(1)).block();
+                            if(c == null) return Mono.just(false);
+                            return Mono.just(cId.get().asLong() == c.getId().asLong());
                         }
                     }catch (Exception ex){}
                     return Mono.just(true);
@@ -416,7 +418,9 @@ public class ScriptExecutor {
                             if(vs == null) return Mono.just(true);
                             Optional<Snowflake> cId = vs.getChannelId();
                             if(!cId.isPresent()) return Mono.just(true);
-                            return Mono.just(cId.get().asLong() != BotUtils.getChannelFromArgument(g, args.get(1)).block().getId().asLong());
+                            GuildChannel c = BotUtils.getChannelFromArgument(g, args.get(1)).block();
+                            if(c == null) return Mono.just(true);
+                            return Mono.just(cId.get().asLong() != c.getId().asLong());
                         }
                     }catch (Exception ex){}
                     return Mono.just(true);
@@ -435,37 +439,37 @@ public class ScriptExecutor {
                 .filter(x -> varName != null)
                 .filter(x -> args.size() == 2)
                 .flatMap(x -> Mono.justOrEmpty(variables.put(varName, "" + args.get(0).equals(args.get(1)))))
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("equalsIgnoreCase", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> varName != null)
                 .filter(x -> args.size() == 2)
                 .flatMap(x -> Mono.justOrEmpty(variables.put(varName, "" + args.get(0).equalsIgnoreCase(args.get(1)))))
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("startsWith", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> varName != null)
                 .filter(x -> args.size() == 2)
                 .flatMap(x -> Mono.justOrEmpty(variables.put(varName, "" + args.get(0).startsWith(args.get(1)))))
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("endsWith", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> varName != null)
                 .filter(x -> args.size() == 2)
                 .flatMap(x -> Mono.justOrEmpty(variables.put(varName, "" + args.get(0).endsWith(args.get(1)))))
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("contains", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> varName != null)
                 .filter(x -> args.size() == 2)
                 .flatMap(x -> Mono.justOrEmpty(variables.put(varName, "" + args.get(0).contains(args.get(1)))))
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("matches", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> varName != null)
                 .filter(x -> args.size() == 2)
                 .flatMap(x -> Mono.justOrEmpty(variables.put(varName, "" + args.get(0).matches(args.get(1)))))
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("mentions", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> varName != null)
@@ -486,7 +490,7 @@ public class ScriptExecutor {
                                 })
                         )
                 )
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("hasAttachment", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> varName != null)
@@ -496,7 +500,7 @@ public class ScriptExecutor {
                                 .flatMap(m -> Mono.justOrEmpty(variables.put(varName, "" + !m.getAttachments().isEmpty())))
                         )
                 )
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("hasEmbed", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> varName != null)
@@ -506,7 +510,7 @@ public class ScriptExecutor {
                                 .flatMap(m -> Mono.justOrEmpty(variables.put(varName, "" + !m.getEmbeds().isEmpty())))
                         )
                 )
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("isInVoiceChannel", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> varName != null)
@@ -525,7 +529,11 @@ public class ScriptExecutor {
                             else {
                                 Optional<Snowflake> cid = m.getVoiceState().block().getChannelId();
                                 if (!cid.isPresent()) variables.put(varName, "" + false);
-                                else variables.put(varName, "" + (cid.get().asLong() == BotUtils.getChannelFromArgument(g, args.get(1)).block().getId().asLong()));
+                                else{
+                                    GuildChannel c = BotUtils.getChannelFromArgument(g, args.get(1)).block();
+                                    if(c == null) return Mono.just(false);
+                                    variables.put(varName, "" + (cid.get().asLong() == c.getId().asLong()));
+                                }
                             }
                         }
                     }catch (Exception ex){}
@@ -546,13 +554,13 @@ public class ScriptExecutor {
                 .filter(x -> varName != null)
                 .filter(x -> args.size() == 1)
                 .flatMap(x -> Mono.justOrEmpty(variables.put(varName, args.get(1).toUpperCase())))
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("lowerCase", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> varName != null)
                 .filter(x -> args.size() == 1)
                 .flatMap(x -> Mono.justOrEmpty(variables.put(varName, args.get(1).toLowerCase())))
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("substring", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> varName != null)
@@ -611,37 +619,37 @@ public class ScriptExecutor {
                 .filter(x -> varName != null)
                 .filter(x -> args.size() == 1)
                 .flatMap(x -> Mono.justOrEmpty(variables.put(varName, BotUtils.escapeRegex(args.get(0)))))
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("replace", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> varName != null)
                 .filter(x -> args.size() == 3)
                 .flatMap(x -> Mono.justOrEmpty(variables.put(varName, args.get(0).replace(args.get(1), args.get(2)))))
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("replaceFirst", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> varName != null)
                 .filter(x -> args.size() == 3)
                 .flatMap(x -> Mono.justOrEmpty(variables.put(varName, args.get(0).replaceFirst(args.get(1), args.get(2)))))
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("replaceRegex", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> varName != null)
                 .filter(x -> args.size() == 3)
                 .flatMap(x -> Mono.justOrEmpty(variables.put(varName, args.get(0).replaceAll(args.get(1), args.get(2)))))
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("length", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> varName != null)
                 .filter(x -> args.size() == 1)
                 .flatMap(x -> Mono.justOrEmpty(variables.put(varName, "" + args.get(1).length())))
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("levenshteinDistance", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> varName != null)
                 .filter(x -> args.size() == 2)
                 .flatMap(x -> Mono.justOrEmpty(variables.put(varName, "" + LevenshteinDistance.getDefaultInstance().apply(args.get(0), args.get(1)))))
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("calc", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> varName != null)
@@ -679,43 +687,43 @@ public class ScriptExecutor {
                 .filter(x -> varName != null)
                 .filter(x -> args.size() == 1)
                 .flatMap(x -> Mono.justOrEmpty(variables.put(varName, "" + !Boolean.parseBoolean(args.get(0)))))
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("and", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> varName != null)
                 .filter(x -> args.size() == 2)
                 .flatMap(x -> Mono.justOrEmpty(variables.put(varName, "" + Boolean.logicalAnd(Boolean.parseBoolean(args.get(0)), Boolean.parseBoolean(args.get(1))))))
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("nand", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> varName != null)
                 .filter(x -> args.size() == 2)
                 .flatMap(x -> Mono.justOrEmpty(variables.put(varName, "" + !Boolean.logicalAnd(Boolean.parseBoolean(args.get(0)), Boolean.parseBoolean(args.get(1))))))
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("or", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> varName != null)
                 .filter(x -> args.size() == 2)
                 .flatMap(x -> Mono.justOrEmpty(variables.put(varName, "" + Boolean.logicalOr(Boolean.parseBoolean(args.get(0)), Boolean.parseBoolean(args.get(1))))))
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("nor", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> varName != null)
                 .filter(x -> args.size() == 2)
                 .flatMap(x -> Mono.justOrEmpty(variables.put(varName, "" + !Boolean.logicalOr(Boolean.parseBoolean(args.get(0)), Boolean.parseBoolean(args.get(1))))))
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("xor", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> varName != null)
                 .filter(x -> args.size() == 2)
                 .flatMap(x -> Mono.justOrEmpty(variables.put(varName, "" + Boolean.logicalXor(Boolean.parseBoolean(args.get(0)), Boolean.parseBoolean(args.get(1))))))
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
         actions.put("xnor", (g, args, variables, varName) -> Mono.just(g)
                 .filter(x -> varName != null)
                 .filter(x -> args.size() == 2)
                 .flatMap(x -> Mono.justOrEmpty(variables.put(varName, "" + !Boolean.logicalXor(Boolean.parseBoolean(args.get(0)), Boolean.parseBoolean(args.get(1))))))
-                .flatMap(x -> Mono.just(true))
+                .map(x -> true)
         );
 
         actions.put("ifTrue", (g, args, variables, varName) -> Mono.just(true));

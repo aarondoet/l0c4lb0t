@@ -79,20 +79,20 @@ public class PermissionManager {
         if(userEverything.contains(m.getId().asLong())) return false;
         if(m.getRoles()
                 .filter(r -> roleEverything.contains(r.getId().asLong()))
-                .flatMap(r -> Mono.just(true))
+                .map(r -> true)
                 .next()
                 .blockOptional().isPresent())
             return false;
 
         if(m.getRoles()
                 .filter(r -> roleWhitelist.contains(r.getId().asLong()))
-                .flatMap(r -> Mono.just(true))
+                .map(r -> true)
                 .next()
                 .blockOptional().isPresent())
             has = true;
         if(m.getRoles()
                 .filter(r -> roleBlacklist.contains(r.getId().asLong()))
-                .flatMap(r -> Mono.just(true))
+                .map(r -> true)
                 .next()
                 .blockOptional().isPresent())
             has = false;
@@ -103,7 +103,7 @@ public class PermissionManager {
             boolean blacklisted = false;
             if(m.getRoles()
                     .filter(r -> roleBlacklist.contains(r.getId().asLong()))
-                    .flatMap(r -> Mono.just(true))
+                    .map(r -> true)
                     .next()
                     .blockOptional().isPresent())
                 blacklisted = true;

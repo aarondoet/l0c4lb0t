@@ -29,7 +29,6 @@ public class HTTPServer {
         HttpServer.create().port(port)
                 .route(routes ->
                     routes.get("/user/{userId}", (request, response) -> {
-                        Map<String, List<String>> params = getParams(request.uri());
                         ObjectNode node = new ObjectMapper().createObjectNode();
                         try{
                             String token = request.requestHeaders().get("Authorization", "");
@@ -108,59 +107,81 @@ public class HTTPServer {
                         }).onErrorReturn("{\"status\":401}".getBytes(StandardCharsets.UTF_8)));
                     })
                     .get("/guild", (request, response) -> {
-                        Map<String, List<String>> params = getParams(request.uri());
                         ObjectNode node = new ObjectMapper().createObjectNode();
                         String token = request.requestHeaders().get("Authorization", "");
                         SQLGuild guild = DataManager.getGuild(token);
                         if(guild.getGuildId() == 0L) return error(response, 401);
                         return success(response).sendByteArray(getGuild(guild.getGuildId()).flatMap(g -> {
-                            node.put("status", 200)
-                                .set("result", new ObjectMapper().createObjectNode()
-                                        .put("guild_id", g.getId().asLong())
-                                        .put("name", g.getName())
-                                        .put("verification_level", g.getVerificationLevel().getValue())
-                                        .put("content_filter_level", g.getContentFilterLevel().getValue())
-                                        .put("owner_id", g.getOwnerId().asLong())
-                                        .put("icon_url", g.getIconUrl(Image.Format.PNG).orElse(null))
-                                        .put("afk_channel_id", g.getAfkChannelId().isPresent() ? g.getAfkChannelId().get().asLong() : null)
-                                        .put("afk_timeout", g.getAfkTimeout())
-                                        .put("join_time", g.getJoinTime().isPresent() ? g.getJoinTime().get().toString() : null)
-                                        .put("banner_url", g.getBannerUrl(Image.Format.PNG).orElse(null))
-                                        .put("mfa_level", g.getMfaLevel().getValue())
-                                        .put("member_count", g.getMemberCount().isPresent() ? g.getMemberCount().getAsInt() : null)
-                                        .put("premium_subscriptions_count", g.getPremiumSubcriptionsCount().isPresent() ? g.getPremiumSubcriptionsCount().getAsInt() : null)
-                                        .put("premium_tier", g.getPremiumTier().getValue())
-                                        .put("region", g.getRegionId())
+                            ArrayNode whitelistedInvites = new ObjectMapper().createArrayNode();
+                            ArrayNode dvcs = new ObjectMapper().createArrayNode();
+                            ArrayNode blockedChannels = new ObjectMapper().createArrayNode();
+                            DataManager.getAllowedInvites(g.getId().asLong()).forEach(whitelistedInvites::add);
+                            DataManager.getDVCs(g.getId().asLong()).forEach(dvcs::add);
+                            DataManager.getBlockedChannels(g.getId().asLong()).forEach(blockedChannels::add);
+                            ObjectNode result = new ObjectMapper().createObjectNode()
+                                    .put("guild_id", g.getId().asLong())
+                                    .put("name", g.getName())
+                                    .put("verification_level", g.getVerificationLevel().getValue())
+                                    .put("content_filter_level", g.getContentFilterLevel().getValue())
+                                    .put("owner_id", g.getOwnerId().asLong())
+                                    .put("icon_url", g.getIconUrl(Image.Format.PNG).orElse(null))
+                                    .put("banner_url", g.getBannerUrl(Image.Format.PNG).orElse(null))
+                                    .put("afk_channel_id", g.getAfkChannelId().isPresent() ? g.getAfkChannelId().get().asLong() : null)
+                                    .put("afk_timeout", g.getAfkTimeout())
+                                    .put("join_time", g.getJoinTime().isPresent() ? g.getJoinTime().get().toString() : null)
+                                    .put("banner_url", g.getBannerUrl(Image.Format.PNG).orElse(null))
+                                    .put("mfa_level", g.getMfaLevel().getValue())
+                                    .put("member_count", g.getMemberCount().isPresent() ? g.getMemberCount().getAsInt() : null)
+                                    .put("premium_subscriptions_count", g.getPremiumSubcriptionsCount().isPresent() ? g.getPremiumSubcriptionsCount().getAsInt() : null)
+                                    .put("premium_tier", g.getPremiumTier().getValue())
+                                    .put("region", g.getRegionId())
 
-                                        .put("bot_prefix", guild.getBotPrefix())
-                                        .put("delete_invites", guild.getDeleteInvites())
-                                        .put("invite_warning", guild.getInviteWarning())
-                                        .put("unknown_command_message", guild.getUnknownCommandMessage())
-                                        .put("language", guild.getLanguage())
-                                        .put("suggestion_channel_id", guild.getSuggestionChannelId())
-                                        .put("ban_message", guild.getBanMessage())
-                                        .put("join_message", guild.getJoinMessage())
-                                        .put("join_role", guild.getJoinRole())
-                                        .put("leave_message", guild.getLeaveMessage())
-                                        .put("sent_command_count", guild.getSentCommandCount())
-                                        .put("sent_custom_command_count", guild.getSentCustomCommandCount())
-                                        .put("sent_message_count", guild.getSentMessageCount())
-                                        .put("sent_public_message_count", guild.getSentPublicMessageCount())
-                                        .put("sent_unknown_command_count", guild.getSentUnknownCommandCount())
-                                );
+                                    .put("bot_prefix", guild.getBotPrefix())
+                                    .put("delete_invites", guild.getDeleteInvites())
+                                    .put("invite_warning", guild.getInviteWarning())
+                                    .put("unknown_command_message", guild.getUnknownCommandMessage())
+                                    .put("language", guild.getLanguage())
+                                    .put("suggestion_channel_id", guild.getSuggestionChannelId())
+                                    .put("ban_message", guild.getBanMessage())
+                                    .put("join_message", guild.getJoinMessage())
+                                    .put("join_role", guild.getJoinRole())
+                                    .put("leave_message", guild.getLeaveMessage())
+                                    .put("sent_command_count", guild.getSentCommandCount())
+                                    .put("sent_custom_command_count", guild.getSentCustomCommandCount())
+                                    .put("sent_message_count", guild.getSentMessageCount())
+                                    .put("sent_public_message_count", guild.getSentPublicMessageCount())
+                                    .put("sent_unknown_command_count", guild.getSentUnknownCommandCount());
+                            result.set("whitelisted_invites", whitelistedInvites);
+                            result.set("dynamic_voice_channels", dvcs);
+                            result.put("blocked_channels", blockedChannels);
+                            node.put("status", 200)
+                                .set("result", result);
+                            return Mono.just(node.toString().getBytes(StandardCharsets.UTF_8));
+                        }).onErrorReturn("{\"status\":401}".getBytes(StandardCharsets.UTF_8)));
+                    })
+                    .get("/customcommands", (request, response) -> {
+                        ObjectNode node = new ObjectMapper().createObjectNode();
+                        String token = request.requestHeaders().get("Authorization", "");
+                        SQLGuild guild = DataManager.getGuild(token);
+                        if(guild.getGuildId() == 0L) return error(response, 401);
+                        return success(response).sendByteArray(getGuild(guild.getGuildId()).flatMap(g -> {
+                            ObjectNode n = new ObjectMapper().createObjectNode();
+                            DataManager.getCustomCommands(g.getId().asLong()).forEach(n::put);
+                            node.put("status", 200)
+                                .set("result", n);
                             return Mono.just(node.toString().getBytes(StandardCharsets.UTF_8));
                         }).onErrorReturn("{\"status\":401}".getBytes(StandardCharsets.UTF_8)));
                     })
 
 
-                            /*
-                             * Header:
-                             * Feedback-user: The user id ("unknown", "0" or id of an existing user)
-                             * Feedback-title: The title (min length: 3)
-                             * Feedback-content: The description (min length: 10)
-                             * Feedback-type: The type (number or text, default: OTHER)
-                             */
-                            .post("/feedback", (request, response) -> {
+                    /*
+                     * Header:
+                     * Feedback-user: The user id ("unknown", "0" or id of an existing user)
+                     * Feedback-title: The title (min length: 3)
+                     * Feedback-content: The description (min length: 10)
+                     * Feedback-type: The type (number or text, default: OTHER)
+                     */
+                    .post("/feedback", (request, response) -> {
                         Map<String, List<String>> params = getParams(request.uri());
                         ObjectNode node = new ObjectMapper().createObjectNode();
                         String token = request.requestHeaders().get("Authorization", "");
@@ -183,25 +204,16 @@ public class HTTPServer {
                                 return Mono.just("{\"status\":400}".getBytes(StandardCharsets.UTF_8));
                             Instant createdAt = Instant.now();
                             SQLFeedback.FeedbackType type = SQLFeedback.FeedbackType.getFeedbackType(request.requestHeaders().get("Feedback-type", "OTHER"), SQLFeedback.FeedbackType.OTHER);
-                            /*SQLFeedback feedback = DataManager.addSuggestion(g.getId().asLong(), uId.get(), title, content, createdAt, type);
-                            node.put("status", 200)
-                                .set("result", getFeedbackNode(feedback));*/
                             if(uId.get() == 0L){
-                                node.put("title", title)
-                                        .put("content", content)
-                                        .put("created_at", createdAt.toString())
-                                        .put("type", type.getValue())
-                                        .put("user", uId.get())
-                                ;
+                                SQLFeedback feedback = DataManager.addSuggestion(g.getId().asLong(), uId.get(), title, content, createdAt, type);
+                                node.put("status", 200)
+                                    .set("result", getFeedbackNode(feedback));
                                 return Mono.just(node.toString().getBytes(StandardCharsets.UTF_8));
                             }else{
                                 return BotMain.client.getUserById(Snowflake.of(uId.get())).onErrorResume(err->Mono.empty()).flatMap(u -> {
-                                    node.put("title", title)
-                                            .put("content", content)
-                                            .put("created_at", createdAt.toString())
-                                            .put("type", type.getValue())
-                                            .put("user", u.getId().asLong())
-                                    ;
+                                    SQLFeedback feedback = DataManager.addSuggestion(g.getId().asLong(), uId.get(), title, content, createdAt, type);
+                                    node.put("status", 200)
+                                        .set("result", getFeedbackNode(feedback));
                                     return Mono.just(node.toString().getBytes(StandardCharsets.UTF_8));
                                 }).switchIfEmpty(Mono.just("{\"status\":404}".getBytes(StandardCharsets.UTF_8)));
                             }
