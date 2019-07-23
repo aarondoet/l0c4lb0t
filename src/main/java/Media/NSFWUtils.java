@@ -82,6 +82,10 @@ public class NSFWUtils {
         return ImageUtils.getRandomRedditPic(new String[]{"futanari"});
     }
 
+    public static String getGay(){
+        return "";
+    }
+
     public static String getGif(){
         return ImageUtils.getRandomRedditPic(new String[]{"NSFW_GIF", "nsfw_gifs", "porninfifteenseconds", "60FPSPorn", "porn_gifs", "nsfw_Best_Porn_Gif", "LipsThatGrip", "adultgifs"});
     }
@@ -92,6 +96,10 @@ public class NSFWUtils {
 
     public static String getHentai(){
         return ImageUtils.getRandomRedditPic(new String[]{"HENTAI_GIF", "hentai_irl", "hentai", "HQHentai", "rule34"});
+    }
+
+    public static String getLesbian(){
+        return "";
     }
 
     public static String getLingerie(){

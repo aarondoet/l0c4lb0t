@@ -167,7 +167,8 @@ public class DataManager {
                     "sent_public_message_count INT," +
                     "sent_unknown_command_count INT," +
                     "sent_custom_command_count INT," +
-                    "token TINYTEXT" +
+                    "token TINYTEXT," +
+                    "readonly_token TINYTEXT" +
                     ")";
             String createCustomCommandsTable = "CREATE TABLE IF NOT EXISTS " + Table.CUSTOM_COMMANDS.getName() + " (" +
                     "guild_id BIGINT," +
@@ -400,8 +401,9 @@ public class DataManager {
         boolean registered = true;
         try {
             con = getConnection();
-            stmt = con.prepareStatement("SELECT guild_id FROM " + Table.GUILDS.getName() + " WHERE token=? LIMIT 1");
+            stmt = con.prepareStatement("SELECT guild_id FROM " + Table.GUILDS.getName() + " WHERE token=? OR readonly_token=? LIMIT 1");
             stmt.setString(1, token);
+            stmt.setString(2, token);
             rs = stmt.executeQuery();
             registered = rs.next();
         }catch(SQLException ex){
@@ -418,7 +420,14 @@ public class DataManager {
         if(setGuild(gId, "token", token, JDBCType.VARCHAR))
             return token;
         else
-            return "";
+            return null;
+    }
+    public static String renewReadonlyToken(Long gId){
+        String token = generateToken();
+        if(setGuild(gId, "readonly_token", token, JDBCType.VARCHAR))
+            return token;
+        else
+            return null;
     }
 
     public static void initializeGuild(Guild g){
@@ -449,9 +458,10 @@ public class DataManager {
                     "leave_message," +                  // 20
                     "ban_message," +                    // 21
                     "unknown_command_message," +        // 22
-                    "suggestion_channel_id" +           // 23
+                    "suggestion_channel_id," +          // 23
+                    "readonly_token" +                  // 24
                     ")" +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             stmt.setLong(1, g.getId().asLong());
             stmt.setString(2, g.getName());
             stmt.setTimestamp(3, Timestamp.from(BotUtils.getSnowflakeCreationDate(g.getId().asLong())));
@@ -475,6 +485,7 @@ public class DataManager {
             stmt.setString(21, "");
             stmt.setString(22, "");
             stmt.setLong(23, 0L);
+            stmt.setString(24, generateToken());
             stmt.executeUpdate();
         } catch (SQLException ex) {
             ex.printStackTrace();
@@ -536,7 +547,8 @@ public class DataManager {
                     rs.getInt("sent_unknown_command_count"),
                     rs.getInt("sent_custom_command_count"),
                     rs.getString("token"),
-                    rs.getLong("suggestion_channel_id")
+                    rs.getLong("suggestion_channel_id"),
+                    rs.getString("readonly_token")
             );
         }catch(SQLException ex){
             ex.printStackTrace();
@@ -548,14 +560,19 @@ public class DataManager {
         return g;
     }
 
-    public static SQLGuild getGuild(String token){
+    public static SQLGuild getGuild(String token, boolean allowReadOnly){
         Connection con = null;
         PreparedStatement stmt = null;
         ResultSet rs = null;
         SQLGuild g = new SQLGuild();
         try {
             con = getConnection();
-            stmt = con.prepareStatement("SELECT * FROM " + Table.GUILDS.getName() + " WHERE token=? LIMIT 1");
+            if(allowReadOnly){
+                stmt = con.prepareStatement("SELECT * FROM " + Table.GUILDS.getName() + " WHERE token=? OR readonly_token=? LIMIT 1");
+                stmt.setString(2, token);
+            }else{
+                stmt = con.prepareStatement("SELECT * FROM " + Table.GUILDS.getName() + " WHERE token=? LIMIT 1");
+            }
             stmt.setString(1, token);
             rs = stmt.executeQuery();
             if(rs.next())
@@ -581,7 +598,8 @@ public class DataManager {
                         rs.getInt("sent_unknown_command_count"),
                         rs.getInt("sent_custom_command_count"),
                         rs.getString("token"),
-                        rs.getLong("suggestion_channel_id")
+                        rs.getLong("suggestion_channel_id"),
+                        rs.getString("readonly_token")
                 );
         }catch(SQLException ex){
             ex.printStackTrace();

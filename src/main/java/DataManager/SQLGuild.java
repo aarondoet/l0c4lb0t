@@ -27,10 +27,11 @@ public class SQLGuild {
     private int sentCustomCommandCount = 0;
     private String token = "";
     private long suggestionChannelId = 0L;
+    private String readonlyToken = "";
 
     public SQLGuild(){}
     
-    public SQLGuild(long guildId, String name, String iconUrl, Instant createdAt, Instant joinedAt, long ownerId, String botPrefix, String language, long joinRole, String joinMessage, String leaveMessage, String banMessage, String unknownCommandMessage, long publicChannelId, boolean deleteInvites, String inviteWarning, int sentMessageCount, int sentCommandCount, int sentPublicMessageCount, int sentUnknownCommandCount, int sentCustomCommandCount, String token, long suggestionChannelId) {
+    public SQLGuild(long guildId, String name, String iconUrl, Instant createdAt, Instant joinedAt, long ownerId, String botPrefix, String language, long joinRole, String joinMessage, String leaveMessage, String banMessage, String unknownCommandMessage, long publicChannelId, boolean deleteInvites, String inviteWarning, int sentMessageCount, int sentCommandCount, int sentPublicMessageCount, int sentUnknownCommandCount, int sentCustomCommandCount, String token, long suggestionChannelId, String readonlyToken) {
         this.guildId = guildId;
         this.name = name;
         this.iconUrl = iconUrl;
@@ -54,6 +55,7 @@ public class SQLGuild {
         this.sentCustomCommandCount = sentCustomCommandCount;
         this.token = token;
         this.suggestionChannelId = suggestionChannelId;
+        this.readonlyToken = readonlyToken;
     }
 
     public long getGuildId() {return guildId;}
@@ -78,5 +80,6 @@ public class SQLGuild {
     public int getSentCustomCommandCount() {return sentCustomCommandCount;}
     public String getToken() {return token;}
     public long getSuggestionChannelId() {return suggestionChannelId;}
+    public String getReadonlyToken() {return readonlyToken;}
 
 }

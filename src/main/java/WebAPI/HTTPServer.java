@@ -28,19 +28,14 @@ public class HTTPServer {
     public static void startServer(){
         HttpServer.create().port(port)
                 .route(routes ->
-                    routes.get("/user/{userId}", (request, response) -> {
+                    routes.get("/l0c4lb0t/user/{userId}", (request, response) -> {
                         ObjectNode node = new ObjectMapper().createObjectNode();
                         try{
                             String token = request.requestHeaders().get("Authorization", "");
-                            SQLGuild guild = DataManager.getGuild(token);
+                            SQLGuild guild = DataManager.getGuild(token, true);
                             if(guild.getGuildId() == 0L) return error(response, 401);
                             long uId = Long.parseLong(request.param("userId"));
-                            /*
-                             * NOT ENABLED SINCE MEMBERS ARE NOT SAVED TO THE DATABASE YET
-                             */
-                            // TODO: enable when members are in the database
                             SQLMember member = DataManager.getMember(guild.getGuildId(), uId);
-                            //if(member.getUserId() == 0L) return error(response, 401);
                             return success(response)
                                     .sendByteArray(getGuild(guild.getGuildId()).flatMap(g -> getMember(g, uId).flatMap(m -> {
                                         node.put("status", 200)
@@ -66,11 +61,14 @@ public class HTTPServer {
                             return error(response, 400);
                         }
                     })
-                    .get("/feedback", (request, response) -> {
+                    /**
+                     *
+                     */
+                    .get("/l0c4lb0t/feedback", (request, response) -> {
                         Map<String, List<String>> params = getParams(request.uri());
                         ObjectNode node = new ObjectMapper().createObjectNode();
                         String token = request.requestHeaders().get("Authorization", "");
-                        SQLGuild guild = DataManager.getGuild(token);
+                        SQLGuild guild = DataManager.getGuild(token, true);
                         if(guild.getGuildId() == 0L) return error(response, 401);
                         return success(response).sendByteArray(getGuild(guild.getGuildId()).flatMap(g -> {
                             int items = 20;
@@ -106,10 +104,10 @@ public class HTTPServer {
                             return Mono.just(node.toString().getBytes(StandardCharsets.UTF_8));
                         }).onErrorReturn("{\"status\":401}".getBytes(StandardCharsets.UTF_8)));
                     })
-                    .get("/guild", (request, response) -> {
+                    .get("/l0c4lb0t/guild", (request, response) -> {
                         ObjectNode node = new ObjectMapper().createObjectNode();
                         String token = request.requestHeaders().get("Authorization", "");
-                        SQLGuild guild = DataManager.getGuild(token);
+                        SQLGuild guild = DataManager.getGuild(token, true);
                         if(guild.getGuildId() == 0L) return error(response, 401);
                         return success(response).sendByteArray(getGuild(guild.getGuildId()).flatMap(g -> {
                             ArrayNode whitelistedInvites = new ObjectMapper().createArrayNode();
@@ -159,10 +157,10 @@ public class HTTPServer {
                             return Mono.just(node.toString().getBytes(StandardCharsets.UTF_8));
                         }).onErrorReturn("{\"status\":401}".getBytes(StandardCharsets.UTF_8)));
                     })
-                    .get("/customcommands", (request, response) -> {
+                    .get("/l0c4lb0t/customcommands", (request, response) -> {
                         ObjectNode node = new ObjectMapper().createObjectNode();
                         String token = request.requestHeaders().get("Authorization", "");
-                        SQLGuild guild = DataManager.getGuild(token);
+                        SQLGuild guild = DataManager.getGuild(token, true);
                         if(guild.getGuildId() == 0L) return error(response, 401);
                         return success(response).sendByteArray(getGuild(guild.getGuildId()).flatMap(g -> {
                             ObjectNode n = new ObjectMapper().createObjectNode();
@@ -181,11 +179,11 @@ public class HTTPServer {
                      * Feedback-content: The description (min length: 10)
                      * Feedback-type: The type (number or text, default: OTHER)
                      */
-                    .post("/feedback", (request, response) -> {
+                    .post("/l0c4lb0t/feedback", (request, response) -> {
                         Map<String, List<String>> params = getParams(request.uri());
                         ObjectNode node = new ObjectMapper().createObjectNode();
                         String token = request.requestHeaders().get("Authorization", "");
-                        SQLGuild guild = DataManager.getGuild(token);
+                        SQLGuild guild = DataManager.getGuild(token, false);
                         if(guild.getGuildId() == 0L) return error(response, 401);
                         return success(response).sendByteArray(getGuild(guild.getGuildId()).flatMap(g -> {
                             AtomicLong uId = new AtomicLong(0L);

@@ -12,6 +12,7 @@ import discord4j.core.object.entity.*;
 import discord4j.core.object.reaction.ReactionEmoji;
 import discord4j.core.object.util.Permission;
 import discord4j.core.object.util.Snowflake;
+import discord4j.core.spec.MessageCreateSpec;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -23,6 +24,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -51,18 +53,21 @@ public class BotCommands {
                 .flatMap(c -> {
                     if(!PermissionManager.hasPermission(e.getGuild().block(), e.getMember().get(), "prefix", false, Permission.ADMINISTRATOR))
                         return BotUtils.sendNoPermissionsMessage(c);
-                    if(args.size() != 1){
+                    if(args.size() < 2){
                         return Mono.just(false);
                     }
-                    String newPref = args.get(0);
-                    if(newPref.length() == 0 || newPref.length() > 10){
-                        return Mono.just(false);
+                    if(args.get(0).equalsIgnoreCase("set")){
+                        String newPref = String.join(" ", args.subList(1, args.size())).trim();
+                        if(newPref.length() == 0 || newPref.length() > 20){
+                            return Mono.just(false);
+                        }
+                        if(DataManager.setGuild(e.getGuildId().get().asLong(), "bot_prefix", newPref, JDBCType.VARCHAR))
+                            c.createMessage(LocaleManager.getLanguageMessage(lang, "commands.prefix.set", newPref)).subscribe();
+                        else
+                            return BotUtils.sendErrorMessage(c);
+                        return Mono.just(true);
                     }
-                    if(DataManager.setGuild(e.getGuildId().get().asLong(), "bot_prefix", args.get(0), JDBCType.VARCHAR))
-                        c.createMessage("Changed prefix to `" + newPref + "`").subscribe();
-                    else
-                        BotUtils.sendErrorMessage(c);
-                    return Mono.just(true);
+                    return Mono.just(false);
                 })
         );
         commands.put(new String[]{"language", "lang"}, (e, prefix, args, lang) -> e.getMessage().getChannel()
@@ -93,7 +98,7 @@ public class BotCommands {
                     if(args.size() < 2)
                         return Mono.just(false);
                     Random rn = new Random();
-                    c.createMessage("I choose `" + args.get(rn.nextInt(args.size())) + "`").subscribe();
+                    c.createMessage(LocaleManager.getLanguageMessage(lang, "commands.choose.chosen", args.get(rn.nextInt(args.size())))).subscribe();
                     return Mono.just(true);
                 })
         );
@@ -101,25 +106,39 @@ public class BotCommands {
         commands.put(new String[]{"token"}, (e, pref, args, lang) -> e.getMessage().getChannel()
                 .flatMap(c -> {
                     if(e.getMember().get().getId().asLong() != e.getGuild().block().getOwnerId().asLong()) return BotUtils.sendNoPermissionsMessage(c);
-                    if(args.size() != 1)
+                    if(args.size() != 1 && args.size() != 2)
                         return Mono.just(false);
-                    if(args.get(0).equalsIgnoreCase("get")) {
+                    if(args.get(0).equalsIgnoreCase("get") && args.size() == 1) {
                         try {
-                            String token = DataManager.getGuild(e.getGuildId().get().asLong()).getToken();
-                            e.getMessage().getAuthorAsMember().block().getPrivateChannel().block().createMessage("Your token for the website is `" + token + "`").subscribe();
-                            c.createMessage("I've sent you the token via DM").subscribe();
+                            SQLGuild g = DataManager.getGuild(e.getGuildId().get().asLong());
+                            e.getMessage().getAuthorAsMember().flatMap(u -> u.getPrivateChannel())
+                                    .flatMap(pc -> pc.createMessage(LocaleManager.getLanguageMessage(lang, "commands.token.get.dm", g.getToken(), g.getReadonlyToken())))
+                                    .subscribe();
+                            c.createMessage(LocaleManager.getLanguageMessage(lang, "commands.token.get.guild")).subscribe();
                         } catch (Exception ex) {
                             ex.printStackTrace();
                             BotUtils.sendErrorMessage(c);
                         }
                         return Mono.just(true);
-                    }else if(args.get(0).equalsIgnoreCase("new") || args.get(0).equalsIgnoreCase("renew")){
-                        String newToken = DataManager.renewToken(e.getGuildId().get().asLong());
-                        if(newToken.length() == 0)
+                    }else if((args.get(0).equalsIgnoreCase("new") || args.get(0).equalsIgnoreCase("renew")) && args.size() == 2){
+                        String newToken = "";
+                        boolean edit = false;
+                        if(args.get(1).equalsIgnoreCase("edit")){
+                            newToken = DataManager.renewToken(e.getGuildId().get().asLong());
+                            edit = true;
+                        }else if(args.get(1).equalsIgnoreCase("readonly")){
+                            newToken = DataManager.renewReadonlyToken(e.getGuildId().get().asLong());
+                        }
+                        if(newToken == null)
                             BotUtils.sendErrorMessage(c);
+                        else if(newToken.length() == 0)
+                            return Mono.just(false);
                         else {
-                            c.createMessage("I've sent you the new token via DM").subscribe();
-                            e.getMessage().getAuthorAsMember().block().getPrivateChannel().block().createMessage("Your new token for the website is `" + newToken + "`").subscribe();
+                            c.createMessage(LocaleManager.getLanguageMessage(lang, "commands.token.new." + (edit ? "edit" : "readonly") + ".guild")).subscribe();
+                            Consumer<MessageCreateSpec> mcs = LocaleManager.getLanguageMessage(lang, "commands.token.new." + (edit ? "edit" : "readonly") + ".dm", newToken);
+                            e.getMessage().getAuthorAsMember().flatMap(u -> u.getPrivateChannel())
+                                    .flatMap(pc -> pc.createMessage(mcs))
+                                    .subscribe();
                         }
                         return Mono.just(true);
                     }
@@ -936,11 +955,6 @@ public class BotCommands {
         commands.put(new String[]{"asian"}, (e, prefix, args, lang) -> e.getMessage().getChannel().ofType(GuildMessageChannel.class)
                 .filter(BotUtils::checkChannelForNSFW)
                 .flatMap(c -> c.createMessage(NSFWUtils.getAsian()))
-                .map(x -> true)
-        );
-        commands.put(new String[]{"neko", "nekos"}, (e, prefix, args, lang) -> e.getMessage().getChannel().ofType(GuildMessageChannel.class)
-                .filter(BotUtils::checkChannelForNSFW)
-                .flatMap(c -> c.createMessage(NSFWUtils.getNeko()))
                 .map(x -> true)
         );
 

@@ -120,7 +120,11 @@
             "choose": {
                 "help": [
                     "`{0}choose <option1> <option2> [<moreOptions>...]` - choose one of the options you gave"
-                ]
+                ],
+                "chosen": {
+                    "title": "I choose...",
+                    "content": "{0}"
+                }
             },
             "command": {},
             "dog": {
@@ -157,8 +161,12 @@
             "poll": {},
             "prefix": {
                 "help": [
-                    "`{0}prefix <newPrefix>` - change the bot's prefix"
-                ]
+                    "`{0}prefix set <newPrefix>` - change the bot's prefix"
+                ],
+                "set": {
+                    "title": "Prefix changed",
+                    "content": "The new prefix is `{0}`."
+                }
             },
             "randomnumber": {},
             "reactionroles": {},
@@ -166,7 +174,7 @@
                 "help": [
                     "`{0}remind <duration> <reason>` - remind you of something important",
                     "",
-                    "A valid duration can be `42` which will be interpreted as minutes but also something like `5h2min52s` (the order is not important)"
+                    "A valid duration can be `42` which will be interpreted as minutes but also something like `5h2min52s` (the order is not important)."
                 ]
             },
             "report": {},
@@ -175,11 +183,46 @@
             "suggestions": {},
             "token": {
                 "help": [
-                    "`{0}token get` - get the token to customize the settings [online](https://l0c4lh057.jg-p.eu/l0c4lb0t/dashboard/)",
-                    "`{0}token new` - renew the token to be sure nobody has access to it anymore",
+                    "`{0}token get` - get the token to [customize the settings online](https://l0c4lh057.jg-p.eu/l0c4lb0t/dashboard/)",
+                    "`{0}token new (edit|readonly)` - renew the token to be sure nobody has access to it anymore",
                     "",
                     "**Warning:** The guild token is very powerful. Only the server owner can get and renew it. Don't share it with anyone you don't trust 150%!"
-                ]
+                ],
+                "get": {
+                    "dm": {
+                        "title": "Tokens",
+                        "content": [
+                            "Your edit token is `{0}` (used to customize settings on the [website](https://l0c4lh057.jg-p.eu/l0c4lb0t/dashboard/) and for [API POST requests](https://l0c4lh057.jg-p.eu/l0c4lb0t/docs/api/#post).",
+                            "Your readonly token is `{1}` (used for [API GET requests](https://l0c4lh057.jg-p.eu/l0c4lb0t/docs/api/#get))."
+                        ]
+                    },
+                    "guild": {
+                        "title": "Tokens",
+                        "content": "I've sent you the tokens in your DMs."
+                    }
+                },
+                "new": {
+                    "edit": {
+                        "dm": {
+                            "title": "Token renewed",
+                            "content": "Your new edit token is `{0}`."
+                        },
+                        "guild": {
+                            "title": "Token renewed",
+                            "content": "I've sent you the new edit token in your DMs."
+                        }
+                    },
+                    "readonly": {
+                        "dm": {
+                            "title": "Token renewed",
+                            "content": "Your new readonly token is `{0}`."
+                        },
+                        "guild": {
+                            "title": "Token renewed",
+                            "content": "I've sent you the new readonly token in your DMs."
+                        }
+                    }
+                }
             },
             "unknowncommandmessage": {},
             "userlimit": {}

@@ -56,8 +56,16 @@ public class LocaleManager {
         return mcs -> {
             mcs.setEmbed(ecs -> {
                 ecs.setTitle(BotUtils.formatString(el.get("title").asText(), args));
-                ecs.setDescription(BotUtils.formatString(el.get("content").asText(), args));
-                ecs.setColor(new Color(el.get("color").asInt()));
+                JsonNode node = el.get("content");
+                String content = "";
+                if(node.isArray()){
+                    for(int i = 0; i < node.size(); i++)
+                        content += "\n" + node.get(i).asText();
+                    content = content.substring(1);
+                }else
+                    content = node.asText();
+                ecs.setDescription(BotUtils.formatString(content, args));
+                if(el.has("color")) ecs.setColor(new Color(el.get("color").asInt())); else ecs.setColor(BotUtils.botColor);
                 if(el.has("author")) ecs.setAuthor(el.get("author").asText(), el.has("authorUrl") ? el.get("authorUrl").asText() : null, el.has("authorIcon") ? el.get("authorIcon").asText() : null);
                 if(el.has("footer")) ecs.setFooter(el.get("footer").asText(), el.has("footerIcon") ? el.get("footerIcon").asText() : null);
             });
