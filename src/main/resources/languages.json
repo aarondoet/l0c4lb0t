@@ -132,7 +132,15 @@
                     "`{0}dog` - send a random picture of a dog"
                 ]
             },
-            "dynamicvoicechannel": {},
+            "dynamicvoicechannel": {
+                "help": [
+                    "`{0}dynamicvoicechannel list` - list all channel names that are used",
+                    "`{0}dynamicvoicechannel add <channelName>` - add a new channel to be affected",
+                    "`{0}dynamicvoicechannel remove <channelName>` - remove the channel from the list of affected channels",
+                    "",
+                    "Alias: `dvc`"
+                ]
+            },
             "help": {
                 "help": [
                     "`{0}help` - send the help message",

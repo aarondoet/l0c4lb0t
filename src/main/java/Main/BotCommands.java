@@ -182,7 +182,7 @@ public class BotCommands {
                     }else if(args.size() > 1){
                         if(args.get(0).equalsIgnoreCase("add")){
                             String name = String.join(" ", args.subList(1, args.size()));
-                            if(DataManager.isDVC(e.getGuildId().get().asLong(), name))
+                            if(DataManager.isDVC(e.getGuildId().get().asLong(), name, null))
                                 c.createMessage("`" + name + "` is already a dvc").subscribe();
                             else if(DataManager.addDVC(e.getGuildId().get().asLong(), name))
                                 c.createMessage("`" + name + "` is now a dvc").subscribe();
@@ -191,7 +191,7 @@ public class BotCommands {
                             return Mono.just(true);
                         }else if(args.get(0).equalsIgnoreCase("remove")){
                             String name = String.join(" ", args.subList(1, args.size()));
-                            if(!DataManager.isDVC(e.getGuildId().get().asLong(), name))
+                            if(!DataManager.isDVC(e.getGuildId().get().asLong(), name, null))
                                 c.createMessage("`" + name + "` is not a dvc").subscribe();
                             else if(DataManager.removeDVC(e.getGuildId().get().asLong(), name))
                                 c.createMessage("`" + name + "` is no longer a dvc").subscribe();

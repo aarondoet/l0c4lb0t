@@ -512,7 +512,7 @@ public class BotUtils {
             if(m.group(3) != null) d += Long.parseLong(m.group(3)) * 1000;
             if(m.group(4) != null) d += Long.parseLong(m.group(4));
         }else{
-            m = Pattern.compile("(?: *(\\d+) *h| *(\\d+) *min| *(\\d+) *s| *(\\d+) *ms)+").matcher(duration);
+            m = Pattern.compile("(?: *(\\d+) *h| *(\\d+) *m(?:in)?| *(\\d+) *s| *(\\d+) *ms)+").matcher(duration);
             if(m.matches()){
                 if(m.group(1) != null) d += Long.parseLong(m.group(1)) * 3600000;
                 if(m.group(2) != null) d += Long.parseLong(m.group(2)) * 60000;

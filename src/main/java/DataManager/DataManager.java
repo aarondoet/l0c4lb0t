@@ -24,7 +24,7 @@ public class DataManager {
 
     private static final String schemeName = "l0c4lb0t";
     private static final int port = 3306;
-    private static final String url = "jdbc:mysql://localhost:" + port + "/" + schemeName + "?useUnicode=true&useJDBCCompliantTimezoneShift=true&useLegacyDatetimeCode=false&serverTimezone=UTC";
+    private static final String url = "jdbc:mysql://localhost:" + port + "/" + schemeName + "?useUnicode=true&useJDBCCompliantTimezoneShift=true&useLegacyDatetimeCode=false&serverTimezone=UTC&characterEncoding=utf8";
 
     private static HikariConfig config = new HikariConfig();
     private static HikariDataSource ds;
@@ -757,16 +757,17 @@ public class DataManager {
         return dvcs;
     }
 
-    public static boolean isDVC(Long gId, String name){
+    public static boolean isDVC(Long gId, String name, Long id){
         Connection con = null;
         PreparedStatement stmt = null;
         ResultSet rs = null;
         boolean isDVC = false;
         try{
             con = getConnection();
-            stmt = con.prepareStatement("SELECT * FROM " + Table.DVCS.getName() + " WHERE guild_id=? AND name=? LIMIT 1");
+            stmt = id == null ? con.prepareStatement("SELECT * FROM " + Table.DVCS.getName() + " WHERE guild_id=? AND name=? LIMIT 1") : con.prepareStatement("SELECT * FROM " + Table.DVCS.getName() + " WHERE guild_id=? AND (name=? OR name=?) LIMIT 1");
             stmt.setLong(1, gId);
             stmt.setString(2, name);
+            if(id != null) stmt.setLong(3, id);
             rs = stmt.executeQuery();
             isDVC = rs.next();
         }catch(SQLException ex){

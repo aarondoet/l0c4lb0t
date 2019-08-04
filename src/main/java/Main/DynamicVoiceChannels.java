@@ -38,7 +38,7 @@ public class DynamicVoiceChannels {
     private static HashMap<Long, HashMap<String, List<Long>>> guildChannels;
 
     private static void createVoiceChannel(Guild g, VoiceChannel c, Member m){
-        if(!DataManager.isDVC(g.getId().asLong(), c.getName())) return;
+        if(!DataManager.isDVC(g.getId().asLong(), c.getName(), c.getId().asLong())) return;
         if(!guildChannels.containsKey(g.getId().asLong())) guildChannels.put(g.getId().asLong(), new HashMap<>());
         if(!guildChannels.get(g.getId().asLong()).containsKey(c.getName())) guildChannels.get(g.getId().asLong()).put(c.getName(), new ArrayList<>());
         List<Long> channels = guildChannels.get(g.getId().asLong()).get(c.getName());
