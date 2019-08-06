@@ -1,5 +1,6 @@
 package Main;
 
+import CommandHandling.BotCommands;
 import DataManager.*;
 import DataManager.SQLGuild;
 import Scripts.ScriptExecutor;
@@ -62,20 +63,24 @@ public class BotEvents {
                         .flatMap(content -> BotUtils.getPrefix(e.getGuildId().get().asLong())
                                 // commands
                                 .flatMap(pref -> Flux.fromIterable(BotCommands.commands.entrySet())
+                                        .filter(cmd -> cmd.getValue().isUsableInGuilds())
                                         //.filter(cmd -> BotUtils.isCommand(content, cmd.getKey(), pref))
                                         .flatMap(cmd -> BotUtils.truncateMessage(content, cmd.getKey(), pref)
-                                                .flatMap(truncated -> BotUtils.messageToArgs(truncated)
-                                                        .flatMap(args -> Mono.just(LocaleManager.getGuildLanguage(e.getGuildId().get().asLong()))
-                                                                .flatMap(lang -> cmd.getValue().execute(e, pref, args, lang).doOnError(err -> err.printStackTrace()).onErrorReturn(false)
-                                                                        // SCRIPT EXECUTION START
-                                                                        .doOnNext(success -> ScriptExecutor.onCommandEvent(e, cmd.getKey(), args, success))
-                                                                        // SCRIPT EXECUTION END
-                                                                        .filter(success -> !success)
-                                                                        .flatMap(success -> {
-                                                                            BotUtils.sendHelpMessage(e.getMessage().getChannel().ofType(GuildMessageChannel.class).block(), cmd.getKey()[0], pref, lang);
-                                                                            return Mono.just(true);
-                                                                        })
-                                                                        .switchIfEmpty(Mono.just(true))
+                                                .flatMap(truncated -> e.getMessage().getChannel()
+                                                        .filter(channel -> !cmd.getValue().isNsfwOnly() || BotUtils.checkChannelForNSFW(channel))
+                                                        .flatMap(channel -> BotUtils.messageToArgs(truncated)
+                                                                .flatMap(args -> Mono.just(LocaleManager.getGuildLanguage(e.getGuildId().get().asLong()))
+                                                                        .flatMap(lang -> cmd.getValue().getExecutable().execute(e, pref, args, lang).doOnError(Throwable::printStackTrace).onErrorReturn(false)
+                                                                                // SCRIPT EXECUTION START
+                                                                                .doOnNext(success -> ScriptExecutor.onCommandEvent(e, cmd.getKey(), args, success))
+                                                                                // SCRIPT EXECUTION END
+                                                                                .filter(success -> !success)
+                                                                                .flatMap(success -> {
+                                                                                    BotUtils.sendHelpMessage(channel, cmd.getKey()[0], pref, lang);
+                                                                                    return Mono.just(true);
+                                                                                })
+                                                                                .switchIfEmpty(Mono.just(true))
+                                                                        )
                                                                 )
                                                         )
                                                 )
@@ -101,7 +106,7 @@ public class BotEvents {
                                         )
                                         .next()
                                 )
-                        ).doOnError(ex -> ex.printStackTrace())
+                        ).doOnError(Throwable::printStackTrace)
                 ).subscribe();
         // poll manager
         client.getEventDispatcher().on(ReactionAddEvent.class)
@@ -291,7 +296,28 @@ public class BotEvents {
                 .filter(e -> e.getMessage().getContent().isPresent())
                 .filter(e -> e.getMessage().getAuthor().isPresent())
                 .filter(e -> e.getMessage().getAuthor().get().getId().asLong() != e.getClient().getSelfId().get().asLong())
-                .flatMap(e -> e.getMessage().getChannel()
+                .flatMap(e -> Flux.fromIterable(BotCommands.commands.entrySet())
+                        .filter(cmd -> cmd.getValue().isUsableInDM())
+                        .flatMap(cmd -> BotUtils.truncateMessage(e.getMessage().getContent().get(), cmd.getKey(), "=")
+                                .flatMap(truncated -> e.getMessage().getChannel()
+                                        .flatMap(channel -> BotUtils.messageToArgs(truncated)
+                                                .flatMap(args -> Mono.just("en")
+                                                // TODO: add users to database, then use their selected language here
+                                                //.flatMap(args -> Mono.just(DataManager.getUser(e.getMessage().getAuthor().get().getId().asLong()).getLanguage())
+                                                        .flatMap(lang -> cmd.getValue().getExecutable().execute(e, "=", args, lang).doOnError(Throwable::printStackTrace).onErrorReturn(false)
+                                                                .filter(success -> !success)
+                                                                .flatMap(success -> {
+                                                                    BotUtils.sendHelpMessage(channel, cmd.getKey()[0], "=", lang);
+                                                                    return Mono.just(true);
+                                                                })
+                                                                .switchIfEmpty(Mono.just(true))
+                                                        )
+                                                )
+                                        )
+                                )
+                        )
+                )
+                /*.flatMap(e -> e.getMessage().getChannel()
                         .flatMap(c -> c.createEmbed(ecs -> ecs
                                 .setTitle("Sorry, but private commands are not available yet.")
                                 .setDescription(
@@ -302,7 +328,8 @@ public class BotEvents {
                                 .setAuthor(BotUtils.l0c4lh057.getUsername(), null, BotUtils.l0c4lh057.getAvatarUrl())
                                 .setFooter("- The bot developer", null)
                         ))
-                ).subscribe();
+                )*/
+                .subscribe();
     }
 
     /**

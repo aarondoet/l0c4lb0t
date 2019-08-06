@@ -142,7 +142,8 @@ public class DataManager {
                     "sent_unknown_command_count INT," +
                     "sent_custom_command_count INT," +
                     "bot_ban_reason TEXT," +
-                    "public_chat_ban_reason TEXT" +
+                    "public_chat_ban_reason TEXT," +
+                    "language TINYTEXT" +
                     ")";
             String createGuildsTable = "CREATE TABLE IF NOT EXISTS " + Table.GUILDS.getName() + " (" +
                     "guild_id BIGINT," +
@@ -651,7 +652,9 @@ public class DataManager {
                     rs.getInt("sent_unknown_command_count"),
                     rs.getInt("sent_custom_command_count"),
                     rs.getString("bot_ban_reason"),
-                    rs.getString("public_chat_ban_reason"));
+                    rs.getString("public_chat_ban_reason"),
+                    rs.getString("language")
+            );
         } catch(SQLException ex) {
             ex.printStackTrace();
         }finally {

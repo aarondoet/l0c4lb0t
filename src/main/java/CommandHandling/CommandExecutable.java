@@ -1,11 +1,11 @@
-package Main;
+package CommandHandling;
 
 import discord4j.core.event.domain.message.MessageCreateEvent;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
 
-public interface Command {
+public interface CommandExecutable{
 
     /**
      * Executes the command and returns whether the the command was executed successfully

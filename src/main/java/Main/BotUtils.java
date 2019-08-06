@@ -1,5 +1,7 @@
 package Main;
 
+import CommandHandling.BotCommands;
+import CommandHandling.CommandExecutable;
 import DataManager.DataManager;
 import DataManager.SQLGuild;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -458,7 +460,7 @@ public class BotUtils {
     }
 
     /**
-     * Sends a {@link Message} to the given {@link MessageChannel} that shows the usage of the {@link Command}
+     * Sends a {@link Message} to the given {@link MessageChannel} that shows the usage of the {@link CommandExecutable}
      *
      * @param channel The {@link MessageChannel}
      * @param cmd     The command
@@ -487,7 +489,7 @@ public class BotUtils {
     }
 
     /**
-     * Sends a {@link Message} to the given channel saying the {@link Member} does not have the permissions to perform the {@link Command}
+     * Sends a {@link Message} to the given channel saying the {@link Member} does not have the permissions to perform the {@link CommandExecutable}
      *
      * @param channel The {@link MessageChannel} the {@link Message} should get sent in
      * @return A {@link Mono} with the value true

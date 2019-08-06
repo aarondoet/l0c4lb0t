@@ -14,8 +14,9 @@ public class SQLUser {
     private int sentCustomCommandCount;
     private String botBanReason;
     private String publicChatBanReason;
+    private String language;
 
-    public SQLUser(long userId, String username, Instant createdAt, int sentMessageCount, int sentCommandCount, int sentPublicMessageCount, int sentUnknownCommandCount, int sentCustomCommandCount, String botBanReason, String publicChatBanReason) {
+    public SQLUser(long userId, String username, Instant createdAt, int sentMessageCount, int sentCommandCount, int sentPublicMessageCount, int sentUnknownCommandCount, int sentCustomCommandCount, String botBanReason, String publicChatBanReason, String language) {
         this.userId = userId;
         this.username = username;
         this.createdAt = createdAt;
@@ -26,6 +27,7 @@ public class SQLUser {
         this.sentCustomCommandCount = sentCustomCommandCount;
         this.botBanReason = botBanReason;
         this.publicChatBanReason = publicChatBanReason;
+        this.language = language;
     }
 
     public long getUserId() {return userId;}
@@ -38,5 +40,6 @@ public class SQLUser {
     public int getSentCustomCommandCount() {return sentCustomCommandCount;}
     public String getBotBanReason() {return botBanReason;}
     public String getPublicChatBanReason() {return publicChatBanReason;}
+    public String getLanguage() {return language;}
 
 }
