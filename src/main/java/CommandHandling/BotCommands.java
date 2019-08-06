@@ -47,36 +47,37 @@ public class BotCommands {
                 .map(c -> true)
         ));
         commands.put(new String[]{"test2"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+                .filter(c -> !RatelimitUtils.isMemberRateLimited(e.getGuildId().get().asLong(), e.getMessage().getAuthor().get().getId().asLong(), RatelimitUtils.RatelimitChannel.TEST, 5, 10_000, c, lang))
                 .flatMap(c -> c.createMessage("Args: " + args.toString()))
                 .map(c -> true)
         ));
         commands.put(new String[]{"prefix", "pref"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
-                .flatMap(c -> {
+                .map(c -> {
                     if(!PermissionManager.hasPermission(e.getGuild().block(), e.getMember().get(), "prefix", false, Permission.ADMINISTRATOR))
                         return BotUtils.sendNoPermissionsMessage(c);
                     if(args.size() < 2){
-                        return Mono.just(false);
+                        return false;
                     }
                     if(args.get(0).equalsIgnoreCase("set")){
                         String newPref = String.join(" ", args.subList(1, args.size())).trim();
                         if(newPref.length() == 0 || newPref.length() > 20){
-                            return Mono.just(false);
+                            return false;
                         }
                         if(DataManager.setGuild(e.getGuildId().get().asLong(), "bot_prefix", newPref, JDBCType.VARCHAR))
                             c.createMessage(LocaleManager.getLanguageMessage(lang, "commands.prefix.set", newPref)).subscribe();
                         else
                             return BotUtils.sendErrorMessage(c);
-                        return Mono.just(true);
+                        return true;
                     }
-                    return Mono.just(false);
+                    return false;
                 })
         ));
         commands.put(new String[]{"language", "lang"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
-                .flatMap(c-> {
+                .map(c-> {
                     if(!PermissionManager.hasPermission(e.getGuild().block(), e.getMember().get(), "language", false, Permission.ADMINISTRATOR))
                         return BotUtils.sendNoPermissionsMessage(c);
                     if(args.size() > 1){
-                        return Mono.just(false);
+                        return false;
                     }else if(args.isEmpty()){
                         try {
                             c.createMessage("Current language: " + lang).subscribe();
@@ -89,26 +90,26 @@ public class BotCommands {
                         else
                             BotUtils.sendErrorMessage(c);
                     }
-                    return Mono.just(true);
+                    return true;
                 })
         ));
         commands.put(new String[]{"choose", "c"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
-                .flatMap(c -> {
+                .map(c -> {
                     if(!PermissionManager.hasPermission(e.getGuild().block(), e.getMember().get(), "choose", true))
                         BotUtils.sendNoPermissionsMessage(c);
                     if(args.size() < 2)
-                        return Mono.just(false);
+                        return false;
                     Random rn = new Random();
                     c.createMessage(LocaleManager.getLanguageMessage(lang, "commands.choose.chosen", args.get(rn.nextInt(args.size())))).subscribe();
-                    return Mono.just(true);
+                    return true;
                 })
         ));
         commands.put(new String[]{"userlimit"}, new Command((e, prefix, args, lang) -> Mono.just(true)));
         commands.put(new String[]{"token"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
-                .flatMap(c -> {
+                .map(c -> {
                     if(e.getMember().get().getId().asLong() != e.getGuild().block().getOwnerId().asLong()) return BotUtils.sendNoPermissionsMessage(c);
                     if(args.size() != 1 && args.size() != 2)
-                        return Mono.just(false);
+                        return false;
                     if(args.get(0).equalsIgnoreCase("get") && args.size() == 1) {
                         try {
                             SQLGuild g = DataManager.getGuild(e.getGuildId().get().asLong());
@@ -120,7 +121,7 @@ public class BotCommands {
                             ex.printStackTrace();
                             BotUtils.sendErrorMessage(c);
                         }
-                        return Mono.just(true);
+                        return true;
                     }else if((args.get(0).equalsIgnoreCase("new") || args.get(0).equalsIgnoreCase("renew")) && args.size() == 2){
                         String newToken = "";
                         boolean edit = false;
@@ -133,7 +134,7 @@ public class BotCommands {
                         if(newToken == null)
                             BotUtils.sendErrorMessage(c);
                         else if(newToken.length() == 0)
-                            return Mono.just(false);
+                            return false;
                         else {
                             c.createMessage(LocaleManager.getLanguageMessage(lang, "commands.token.new." + (edit ? "edit" : "readonly") + ".guild")).subscribe();
                             Consumer<MessageCreateSpec> mcs = LocaleManager.getLanguageMessage(lang, "commands.token.new." + (edit ? "edit" : "readonly") + ".dm", newToken);
@@ -141,15 +142,15 @@ public class BotCommands {
                                     .flatMap(pc -> pc.createMessage(mcs))
                                     .subscribe();
                         }
-                        return Mono.just(true);
+                        return true;
                     }
-                    return Mono.just(false);
+                    return false;
                 })
         ));
         commands.put(new String[]{"weather"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
-                .flatMap(c -> {
+                .map(c -> {
                     if(args.isEmpty())
-                        return Mono.just(false);
+                        return false;
                     String query = String.join(" ", args);
                     boolean metric = true;
                     JsonNode weather = Weather.getWeather(query, lang, metric);
@@ -168,17 +169,17 @@ public class BotCommands {
                             ecs.setFooter("Lon: " + weather.get("coord").get("lon").asDouble() + ", Lat: " + weather.get("coord").get("lat").asDouble(), null);
                         })).subscribe();
                     }
-                    return Mono.just(true);
+                    return true;
                 })
         ));
         commands.put(new String[]{"dynamicvoicechannel", "dvc"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
-                .flatMap(c -> {
+                .map(c -> {
                     if(!PermissionManager.hasPermission(e.getGuild().block(), e.getMember().get(), "dynamicvoicechannel", false, Permission.MANAGE_CHANNELS))
                         return BotUtils.sendNoPermissionsMessage(c);
                     if(args.size() == 1){
                         if(args.get(0).equalsIgnoreCase("list")){
                             c.createMessage("" + DataManager.getDVCs(e.getGuildId().get().asLong())).subscribe();
-                            return Mono.just(true);
+                            return true;
                         }
                     }else if(args.size() > 1){
                         if(args.get(0).equalsIgnoreCase("add")){
@@ -189,7 +190,7 @@ public class BotCommands {
                                 c.createMessage("`" + name + "` is now a dvc").subscribe();
                             else
                                 BotUtils.sendErrorMessage(c);
-                            return Mono.just(true);
+                            return true;
                         }else if(args.get(0).equalsIgnoreCase("remove")){
                             String name = String.join(" ", args.subList(1, args.size()));
                             if(!DataManager.isDVC(e.getGuildId().get().asLong(), name, null))
@@ -198,21 +199,21 @@ public class BotCommands {
                                 c.createMessage("`" + name + "` is no longer a dvc").subscribe();
                             else
                                 BotUtils.sendErrorMessage(c);
-                            return Mono.just(true);
+                            return true;
                         }
                     }
-                    return Mono.just(false);
+                    return false;
                 })
         ));
         commands.put(new String[]{"poll"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
-                .flatMap(c -> {
+                .map(c -> {
                     if(!PermissionManager.hasPermission(e.getGuild().block(), e.getMember().get(), "createPoll", true))
                         return BotUtils.sendNoPermissionsMessage(c);
                     if(args.size() < 4)
-                        return Mono.just(false);
+                        return false;
                     long duration = BotUtils.getPollDuration(args.get(0));
                     if(duration < 0)
-                        return Mono.just(false);
+                        return false;
                     args.remove(0);
                     AtomicBoolean multiVote = new AtomicBoolean(false);
                     List<ReactionEmoji> emojis = new ArrayList<>();
@@ -220,7 +221,7 @@ public class BotCommands {
                     emojis.add(ReactionEmoji.unicode("\uD83D\uDD1F"));
                     if(args.get(0).equalsIgnoreCase("yn")){
                         if(args.size() > 5)
-                            return Mono.just(false);
+                            return false;
                         args.remove(0);
                         emojis.clear();
                         emojis.addAll(new ArrayList<>(Arrays.asList(ReactionEmoji.unicode("\u2705"), BotUtils.x, ReactionEmoji.unicode("*\u20E3"))));
@@ -233,7 +234,7 @@ public class BotCommands {
                     String description = args.get(0);
                     args.remove(0);
                     if(args.size() > 20)
-                        return Mono.just(false);
+                        return false;
                     if(args.size() > 10){
                         emojis.clear();
                         for(int i = 0; i < 20; i++)
@@ -269,11 +270,11 @@ public class BotCommands {
                                     .next()
                             )
                             .subscribe();
-                    return Mono.just(true);
+                    return true;
                 })
         ));
         commands.put(new String[]{"invites", "invite"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
-                .flatMap(c -> {
+                .map(c -> {
                     if(!PermissionManager.hasPermission(e.getGuild().block(), e.getMember().get(), "blockInvites", false, Permission.MANAGE_MESSAGES))
                         return BotUtils.sendNoPermissionsMessage(c);
                     if(args.size() == 1){
@@ -283,7 +284,7 @@ public class BotCommands {
                                 c.createMessage("delete invites: " + sg.getDeleteInvites() + "\nwarning: " + sg.getInviteWarning()).subscribe();
                             else
                                 BotUtils.sendErrorMessage(c);
-                            return Mono.just(true);
+                            return true;
                         }else if(args.get(0).equalsIgnoreCase("whitelist")){
                             List<String> allowed = DataManager.getAllowedInvites(e.getGuildId().get().asLong());
                             c.createMessage("Allowed invites: " + allowed).subscribe();
@@ -296,7 +297,7 @@ public class BotCommands {
                             }else{
                                 BotUtils.sendErrorMessage(c);
                             }
-                            return Mono.just(true);
+                            return true;
                         }else if(args.get(0).equalsIgnoreCase("allow")){
                             String invite = args.get(1);
                             Matcher m = Pattern.compile(BotUtils.INVITE_MATCHER).matcher(invite);
@@ -307,7 +308,7 @@ public class BotCommands {
                                 c.createMessage("invite " + invite + " is now allowed").subscribe();
                             else
                                 BotUtils.sendErrorMessage(c);
-                            return Mono.just(true);
+                            return true;
                         }else if(args.get(0).equalsIgnoreCase("disallow")){
                             String invite = args.get(1);
                             Matcher m = Pattern.compile(BotUtils.INVITE_MATCHER).matcher(invite);
@@ -318,7 +319,7 @@ public class BotCommands {
                                 c.createMessage("invite " + invite + " is not allowed anymore").subscribe();
                             else
                                 BotUtils.sendErrorMessage(c);
-                            return Mono.just(true);
+                            return true;
                         }
                     }
                     if(args.size() > 1){
@@ -335,15 +336,15 @@ public class BotCommands {
                                 else
                                     c.createMessage("new warning: " + warning).subscribe();
                             }
-                            return Mono.just(true);
+                            return true;
                         }
                     }
-                    return Mono.just(false);
+                    return false;
                 })
         ));
         commands.put(new String[]{"permissions", "perms"}, new Command((e, prefix, args, lang) -> Mono.just(false)));
         commands.put(new String[]{"script", "scripts"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
-                .flatMap(c -> {
+                .map(c -> {
                     /*if(args.size() == 1){
                         if(args.get(0).equalsIgnoreCase("upload") || args.get(0).equalsIgnoreCase("save")){
                             if(e.getMessage().getAttachments().size() == 1){
@@ -367,20 +368,20 @@ public class BotCommands {
                                             ex.printStackTrace();
                                             return BotUtils.sendErrorMessage(c);
                                         }
-                                        return Mono.just(true);
+                                        return true;
                                     }else{
                                         c.createMessage("unknown event " + eventType).subscribe();
-                                        return Mono.just(true);
+                                        return true;
                                     }
                                 }
                             }
                         }
                     }*/
-                    return Mono.just(true);
+                    return true;
                 })
         ));
         commands.put(new String[]{"command", "commands", "cmd", "cmds"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
-                .flatMap(c -> {
+                .map(c -> {
                     if(!PermissionManager.hasPermission(e.getGuild().block(), e.getMember().get(), "customCommand", false, Permission.MANAGE_MESSAGES))
                         return BotUtils.sendNoPermissionsMessage(c);
                     if(args.size() == 1){
@@ -390,7 +391,7 @@ public class BotCommands {
                                 c.createMessage("no custom commands here").subscribe();
                             else
                                 c.createMessage("custom commands: " + String.join(", ", cc.keySet())).subscribe();
-                            return Mono.just(true);
+                            return true;
                         }
                     }else if(args.size() == 2){
                         if (args.get(0).equalsIgnoreCase("get")) {
@@ -400,7 +401,7 @@ public class BotCommands {
                                 c.createMessage("CommandExecutable: `" + cmd + "`\nResponse: ```\n" + cc.get(cmd) + "```").subscribe();
                             else
                                 c.createMessage("command `" + cmd + "` does not exist").subscribe();
-                            return Mono.just(true);
+                            return true;
                         } else if (args.get(0).equalsIgnoreCase("remove") || args.get(0).equalsIgnoreCase("delete")) {
                             String cmd = args.get(1);
                             Map<String, String> cc = DataManager.getCustomCommands(e.getGuildId().get().asLong());
@@ -411,7 +412,7 @@ public class BotCommands {
                                     BotUtils.sendErrorMessage(c);
                             } else
                                 c.createMessage("this custom command does not exist").subscribe();
-                            return Mono.just(true);
+                            return true;
                         }
                     }else if(args.size() > 2){
                         if(args.get(0).equalsIgnoreCase("add") || args.get(0).equalsIgnoreCase("create")){
@@ -424,26 +425,26 @@ public class BotCommands {
                                 c.createMessage("added custom command").subscribe();
                             else
                                 BotUtils.sendErrorMessage(c);
-                            return Mono.just(true);
+                            return true;
                         }
                     }
-                    return Mono.just(false);
+                    return false;
                 })
         ));
         commands.put(new String[]{"blockchannel", "bc"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
-                .flatMap(c -> {
+                .map(c -> {
                     if(!PermissionManager.hasPermission(e.getGuild().block(), e.getMember().get(), "blockChannel", false, Permission.MANAGE_CHANNELS))
                         return BotUtils.sendNoPermissionsMessage(c);
                     if(args.size() == 1){
                         if(args.get(0).equalsIgnoreCase("list")){
                             List<Long> blocked = DataManager.getBlockedChannels(e.getGuildId().get().asLong());
                             c.createMessage("Blocked channels: " + blocked.stream().map(cId -> "<#" + cId + ">").collect(Collectors.joining(", "))).subscribe();
-                            return Mono.just(true);
+                            return true;
                         }
                     }else if(args.size() == 2){
                         if(args.get(0).equalsIgnoreCase("add")){
                             GuildMessageChannel bc = BotUtils.getChannelFromArgument(e.getGuild(), args.get(1)).ofType(GuildMessageChannel.class).block();
-                            if(bc == null) return Mono.just(false);
+                            if(bc == null) return false;
                             List<Long> blocked = DataManager.getBlockedChannels(e.getGuildId().get().asLong());
                             if(blocked.contains(bc.getId().asLong()))
                                 c.createMessage("already blocked").subscribe();
@@ -451,25 +452,25 @@ public class BotCommands {
                                 c.createMessage("blocked channel").subscribe();
                             else
                                 BotUtils.sendErrorMessage(c);
-                            return Mono.just(true);
+                            return true;
                         }else if(args.get(0).equalsIgnoreCase("remove")){
                             List<Long> blocked = DataManager.getBlockedChannels(e.getGuildId().get().asLong());
                             GuildMessageChannel bc = BotUtils.getChannelFromArgument(e.getGuild(), args.get(1)).ofType(GuildMessageChannel.class).block();
-                            if(bc == null) return Mono.just(false);
+                            if(bc == null) return false;
                             if(!blocked.contains(bc.getId().asLong()))
                                 c.createMessage("not blocked").subscribe();
                             else if(DataManager.removeBlockedChannel(e.getGuildId().get().asLong(), bc.getId().asLong()))
                                 c.createMessage("unblocked channel").subscribe();
                             else
                                 BotUtils.sendErrorMessage(c);
-                            return Mono.just(true);
+                            return true;
                         }
                     }
-                    return Mono.just(false);
+                    return false;
                 })
         ));
         commands.put(new String[]{"unknowncommandmessage", "ucm"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
-                .flatMap(c -> {
+                .map(c -> {
                     if(!PermissionManager.hasPermission(e.getGuild().block(), e.getMember().get(), "unknowncommandmessage", false, Permission.MANAGE_MESSAGES))
                         return BotUtils.sendNoPermissionsMessage(c);
                     if(args.size() == 1){
@@ -479,13 +480,13 @@ public class BotCommands {
                                 c.createMessage("no ucm").subscribe();
                             else
                                 c.createMessage("ucm: " + ucm).subscribe();
-                            return Mono.just(true);
+                            return true;
                         }else if(args.get(0).equalsIgnoreCase("remove") || args.get(0).equalsIgnoreCase("delete")){
                             if(DataManager.setGuild(e.getGuildId().get().asLong(), "unknown_command_message", "", JDBCType.VARCHAR))
                                 c.createMessage("removed ucm").subscribe();
                             else
                                 return BotUtils.sendErrorMessage(c);
-                            return Mono.just(true);
+                            return true;
                         }
                     }else if(args.size() > 1){
                         if(args.get(0).equalsIgnoreCase("set")){
@@ -494,10 +495,10 @@ public class BotCommands {
                                 c.createMessage("Changed ucm to " + newUcm).subscribe();
                             else
                                 return BotUtils.sendErrorMessage(c);
-                            return Mono.just(true);
+                            return true;
                         }
                     }
-                    return Mono.just(false);
+                    return false;
                 })
         ));
         commands.put(new String[]{"joinrole", "jr"}, new Command((e, prefix, args, lang) -> Mono.just(true)));
@@ -511,7 +512,7 @@ public class BotCommands {
         /* GENERAL */
 
         commands.put(new String[]{"help"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
-                .flatMap(c -> {
+                .map(c -> {
                     AtomicInteger pageNbr = new AtomicInteger(0);
                     if(args.size() > 0) try{
                         if(args.get(0).matches("^\\d+$"))
@@ -519,13 +520,13 @@ public class BotCommands {
                         else{
                             if(LocaleManager.getLanguageElement(lang, "commands").has(args.get(0))) {
                                 BotUtils.sendHelpMessage(c, args.get(0), prefix, lang);
-                                return Mono.just(true);
+                                return true;
                             }
                             for(String[] aliases : commands.keySet())
                                 for(String alias : aliases)
                                     if(alias.equalsIgnoreCase(args.get(0))){
                                         BotUtils.sendHelpMessage(c, aliases[0], prefix, lang);
-                                        return Mono.just(true);
+                                        return true;
                                     }
                         }
                     }catch (NumberFormatException ex){}
@@ -547,7 +548,7 @@ public class BotCommands {
                         ).subscribe();
                         break;
                     }
-                    return Mono.just(true);
+                    return true;
                 })
         ));
         commands.put(new String[]{"about", "info", "l0c4lb0t"}, new Command((e, prefix, args, lang) -> Mono.just(true)));
@@ -556,7 +557,7 @@ public class BotCommands {
         /* MODERATION */
 
         commands.put(new String[]{"resetnicks", "resetnicknames", "nickreset"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
-                .flatMap(c -> {
+                .map(c -> {
                     if(!PermissionManager.hasPermission(e.getGuild().block(), e.getMember().get(), "resetnicks", false, Permission.MANAGE_NICKNAMES))
                         return BotUtils.sendNoPermissionsMessage(c);
                     AtomicInteger cnt = new AtomicInteger(0);
@@ -567,14 +568,14 @@ public class BotCommands {
                             .next()
                     ).subscribe();
                     c.createMessage("Reset " + cnt.get() + " nicknames").subscribe();
-                    return Mono.just(true);
+                    return true;
                 })
         ));
         commands.put(new String[]{"reactionroles", "reactionrole", "rr"}, new Command((e, prefix, args, lang) -> Mono.just(true)));
         commands.put(new String[]{"ban"}, new Command((e, prefix, args, lang) -> Mono.just(true)));
         commands.put(new String[]{"kick"}, new Command((e, prefix, args, lang) -> Mono.just(true)));
         commands.put(new String[]{"anticaps", "nocaps"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
-                .flatMap(c -> {
+                .map(c -> {
                     if(!PermissionManager.hasPermission(e.getGuild().block(), e.getMember().get(), "anticaps", false, Permission.MANAGE_MESSAGES))
                         return BotUtils.sendNoPermissionsMessage(c);
                     if(args.size() == 1){
@@ -584,7 +585,7 @@ public class BotCommands {
                     }else if(args.size() > 2){
 
                     }
-                    return Mono.just(false);
+                    return false;
                 })
         ));
 
@@ -642,12 +643,12 @@ public class BotCommands {
         /* BOT STAFF ONLY */
 
         commands.put(new String[]{"shutdown", "exit"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
-                .flatMap(c -> {
+                .map(c -> {
                     if(!BotUtils.getBotAdmins().contains(e.getMember().get().getId().asLong()))
                         return BotUtils.sendNoPermissionsMessage(c);
                     e.getClient().logout().block();
                     System.exit(0);
-                    return Mono.just(true);
+                    return true;
                 })
         ));
         commands.put(new String[]{"getid"}, new Command((e, prefix, args, lang) -> Mono.just(true)));
@@ -662,7 +663,7 @@ public class BotCommands {
 
         commands.put(new String[]{"botsuggest", "botsuggestion", "botsuggestions"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
                 .filter(c -> args.size() > 0)
-                .flatMap(c -> {
+                .map(c -> {
                     if((args.size() == 1 || args.size() == 2) && args.get(0).equalsIgnoreCase("list")){
                         AtomicLong pageNumber = new AtomicLong(1);
                         long itemsPerPage = 5;
@@ -685,14 +686,14 @@ public class BotCommands {
                                 .flatMap(emoji -> m.addReaction(emoji))
                                 .then()
                         ).subscribe();
-                        return Mono.just(true);
+                        return true;
                     }else if(args.size() == 2 && args.get(0).equalsIgnoreCase("get")){
                         try {
                             int sId = Integer.parseInt(args.get(1));
                             SQLBotSuggestion suggestion = DataManager.getBotSuggestion(sId);
                             if(suggestion == null){
                                 c.createMessage("Could not find a suggestion with the id " + sId).subscribe();
-                                return Mono.just(true);
+                                return true;
                             }
                             User u = e.getClient().getUserById(Snowflake.of(suggestion.getCreatorId())).block();
                             c.createEmbed(ecs -> ecs
@@ -706,9 +707,9 @@ public class BotCommands {
                                     .setTimestamp(suggestion.getCreatedAt())
                             ).subscribe();
                         }catch (NumberFormatException ex){
-                            return Mono.just(false);
+                            return false;
                         }
-                        return Mono.just(true);
+                        return true;
                     }else if(args.size() == 2 && args.get(0).equalsIgnoreCase("notify")){
                         // set notification status for given suggestion
                         try {
@@ -716,7 +717,7 @@ public class BotCommands {
                             SQLBotSuggestion suggestion = DataManager.getBotSuggestion(sId);
                             if(suggestion == null){
                                 c.createMessage("could not find a suggestion with the id " + sId).subscribe();
-                                return Mono.just(true);
+                                return true;
                             }
                             boolean notif = DataManager.getBotSuggestionNotifications(sId).contains(e.getMessage().getAuthor().get().getId().asLong());
                             if(DataManager.setBotSuggestionNotification(e.getMessage().getAuthor().get().getId().asLong(), sId, !notif))
@@ -725,9 +726,9 @@ public class BotCommands {
                                 return BotUtils.sendErrorMessage(c);
                         }catch (NumberFormatException ex){
                             c.createMessage("no valid id").subscribe();
-                            return Mono.just(true);
+                            return true;
                         }
-                        return Mono.just(true);
+                        return true;
                     }else if(args.size() > 2 && (args.get(0).equalsIgnoreCase("add") || args.get(0).equalsIgnoreCase("create") || args.get(0).equalsIgnoreCase("suggest"))){
                         String title = args.get(1);
                         String content = String.join(" ", args.subList(2, args.size()));
@@ -745,7 +746,7 @@ public class BotCommands {
                             )).subscribe();
                         }else
                             return BotUtils.sendErrorMessage(c);
-                        return Mono.just(true);
+                        return true;
                     }else if(args.size() > 3 && args.get(0).equalsIgnoreCase("update")){
                         if(!BotUtils.getBotAdmins().contains(e.getMessage().getAuthor().get().getId().asLong()))
                             return BotUtils.sendNoPermissionsMessage(c);
@@ -754,7 +755,7 @@ public class BotCommands {
                             SQLBotSuggestion suggestion = DataManager.getBotSuggestion(sId);
                             if(suggestion == null){
                                 c.createMessage("could not find suggestion with id " + sId).subscribe();
-                                return Mono.just(true);
+                                return true;
                             }
                             if(args.get(2).equalsIgnoreCase("title")){
                                 String newTitle = String.join(" ", args.subList(3, args.size()));
@@ -762,17 +763,17 @@ public class BotCommands {
                                     c.createMessage("changed title of suggestion #" + sId + " to " + newTitle).subscribe();
                                 else
                                     return BotUtils.sendErrorMessage(c);
-                                return Mono.just(true);
+                                return true;
                             }else if(args.get(2).equalsIgnoreCase("content") || args.get(2).equalsIgnoreCase("description")){
                                 String newContent = String.join(" ", args.subList(3, args.size()));
                                 if(DataManager.setBotSuggestion(sId, "content", newContent, JDBCType.VARCHAR))
                                     c.createMessage("changed description of suggestion #" + sId + " to " + newContent).subscribe();
                                 else
                                     return BotUtils.sendErrorMessage(c);
-                                return Mono.just(true);
+                                return true;
                             }else if(args.size() > 3 && args.get(2).equalsIgnoreCase("status")){
                                 SuggestionStatus newStatus = SuggestionStatus.getSuggestionStatus(args.get(3));
-                                if(newStatus == null) return Mono.just(false);
+                                if(newStatus == null) return false;
                                 String newDetailedStatus = args.size() == 4 ? null : String.join(" ", args.subList(4, args.size()));
                                 if(DataManager.setBotSuggestionStatus(sId, newStatus.getStatus(), newDetailedStatus, e.getMessage().getTimestamp())) {
                                     c.createMessage("changed status of suggestion #" + sId + " to " + newStatus.getName() + ": " + newDetailedStatus).subscribe();
@@ -789,12 +790,12 @@ public class BotCommands {
                                             .subscribe();
                                 }else
                                     return BotUtils.sendErrorMessage(c);
-                                return Mono.just(true);
+                                return true;
                             }
                         }catch (NumberFormatException ex){}
-                        return Mono.just(false);
+                        return false;
                     }
-                    return Mono.just(false);
+                    return false;
                 })
         ));
 
@@ -802,7 +803,7 @@ public class BotCommands {
 
         commands.put(new String[]{"feedback"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
                 .filter(c -> args.size() > 0)
-                .flatMap(c -> {
+                .map(c -> {
                     if((args.size() == 1 || args.size() == 2) && args.get(0).equalsIgnoreCase("list")){
                         AtomicLong pageNumber = new AtomicLong(1);
                         long itemsPerPage = 5;
@@ -825,14 +826,14 @@ public class BotCommands {
                                 .flatMap(emoji -> m.addReaction(emoji))
                                 .then()
                         ).subscribe();
-                        return Mono.just(true);
+                        return true;
                     }else if(args.size() == 2 && args.get(0).equalsIgnoreCase("get")){
                         try {
                             int sId = Integer.parseInt(args.get(1));
                             SQLFeedback suggestion = DataManager.getSuggestion(e.getGuildId().get().asLong(), sId);
                             if(suggestion == null){
                                 c.createMessage("Could not find feedback with the id " + sId).subscribe();
-                                return Mono.just(true);
+                                return true;
                             }
                             User u = e.getClient().getUserById(Snowflake.of(suggestion.getCreatorId())).block();
                             c.createEmbed(ecs -> ecs
@@ -847,9 +848,9 @@ public class BotCommands {
                                     .setTimestamp(suggestion.getCreatedAt())
                             ).subscribe();
                         }catch (NumberFormatException ex){
-                            return Mono.just(false);
+                            return false;
                         }
-                        return Mono.just(true);
+                        return true;
                     }else if(args.size() == 2 && args.get(0).equalsIgnoreCase("notify")){
                         // set notification status for given suggestion
                         try {
@@ -857,7 +858,7 @@ public class BotCommands {
                             SQLFeedback suggestion = DataManager.getSuggestion(e.getGuildId().get().asLong(), sId);
                             if(suggestion == null){
                                 c.createMessage("could not find a suggestion with the id " + sId).subscribe();
-                                return Mono.just(true);
+                                return true;
                             }
                             boolean notif = DataManager.getSuggestionNotifications(e.getGuildId().get().asLong(), sId).contains(e.getMessage().getAuthor().get().getId().asLong());
                             if(DataManager.setSuggestionNotification(e.getGuildId().get().asLong(), e.getMessage().getAuthor().get().getId().asLong(), sId, !notif))
@@ -866,12 +867,13 @@ public class BotCommands {
                                 return BotUtils.sendErrorMessage(c);
                         }catch (NumberFormatException ex){
                             c.createMessage("no valid id").subscribe();
-                            return Mono.just(true);
+                            return true;
                         }
-                        return Mono.just(true);
+                        return true;
                     }else if(args.size() > 3 && (args.get(0).equalsIgnoreCase("add") || args.get(0).equalsIgnoreCase("create") || args.get(0).equalsIgnoreCase("suggest"))){
+                        if(RatelimitUtils.isMemberRateLimited(e.getGuildId().get().asLong(), e.getMember().get().getId().asLong(), RatelimitUtils.RatelimitChannel.FEEDBACK, 2, 300_000, c, lang)) return true;
                         SQLFeedback.FeedbackType type = SQLFeedback.FeedbackType.getFeedbackType(args.get(1));
-                        if(type == null) return Mono.just(false);
+                        if(type == null) return false;
                         String title = args.get(2);
                         String content = String.join(" ", args.subList(3, args.size()));
                         SQLFeedback suggestion = DataManager.addSuggestion(e.getGuildId().get().asLong(), e.getMessage().getAuthor().get().getId().asLong(), title, content, e.getMessage().getTimestamp(), type);
@@ -888,7 +890,7 @@ public class BotCommands {
                             )).subscribe();
                         }else
                             return BotUtils.sendErrorMessage(c);
-                        return Mono.just(true);
+                        return true;
                     }else if(args.size() > 3 && args.get(0).equalsIgnoreCase("update")){
                         if(!PermissionManager.hasPermission(e.getGuild().block(), e.getMember().get(), "updateSuggestions", false, Permission.MANAGE_GUILD))
                             return BotUtils.sendNoPermissionsMessage(c);
@@ -897,7 +899,7 @@ public class BotCommands {
                             SQLFeedback suggestion = DataManager.getSuggestion(e.getGuildId().get().asLong(), sId);
                             if(suggestion == null){
                                 c.createMessage("could not find suggestion with id " + sId).subscribe();
-                                return Mono.just(true);
+                                return true;
                             }
                             if(args.get(2).equalsIgnoreCase("title")){
                                 String newTitle = String.join(" ", args.subList(3, args.size()));
@@ -905,17 +907,17 @@ public class BotCommands {
                                     c.createMessage("changed title of suggestion #" + sId + " to " + newTitle).subscribe();
                                 else
                                     return BotUtils.sendErrorMessage(c);
-                                return Mono.just(true);
+                                return true;
                             }else if(args.get(2).equalsIgnoreCase("content") || args.get(2).equalsIgnoreCase("description")){
                                 String newContent = String.join(" ", args.subList(3, args.size()));
                                 if(DataManager.setSuggestion(e.getGuildId().get().asLong(), sId, "content", newContent, JDBCType.VARCHAR))
                                     c.createMessage("changed description of suggestion #" + sId + " to " + newContent).subscribe();
                                 else
                                     return BotUtils.sendErrorMessage(c);
-                                return Mono.just(true);
+                                return true;
                             }else if(args.size() > 3 && args.get(2).equalsIgnoreCase("status")){
                                 SuggestionStatus newStatus = SuggestionStatus.getSuggestionStatus(args.get(3));
-                                if(newStatus == null) return Mono.just(false);
+                                if(newStatus == null) return false;
                                 String newDetailedStatus = args.size() == 4 ? null : String.join(" ", args.subList(4, args.size()));
                                 if(DataManager.setSuggestionStatus(e.getGuildId().get().asLong(), sId, newStatus.getStatus(), newDetailedStatus, e.getMessage().getTimestamp())) {
                                     c.createMessage("changed status of suggestion #" + sId + " to " + newStatus.getName() + ": " + newDetailedStatus).subscribe();
@@ -932,12 +934,12 @@ public class BotCommands {
                                             .subscribe();
                                 }else
                                     return BotUtils.sendErrorMessage(c);
-                                return Mono.just(true);
+                                return true;
                             }
                         }catch (NumberFormatException ex){}
-                        return Mono.just(false);
+                        return false;
                     }
-                    return Mono.just(false);
+                    return false;
                 })
         ));
 
@@ -966,7 +968,7 @@ public class BotCommands {
 
         commands.put(new String[]{"backup", "backups"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
                 .filter(c -> args.size() > 0)
-                .flatMap(c -> {
+                .map(c -> {
                     if(args.size() == 2 && (args.get(0).equalsIgnoreCase("auutomated") || args.get(0).equalsIgnoreCase("automation") || args.get(0).equalsIgnoreCase("automate") || args.get(0).equalsIgnoreCase("automatic"))) {
                         if(PatreonManager.isPatronGuild(e.getGuildId().get().asLong())){
                             if(args.get(1).equalsIgnoreCase("enable")){
@@ -995,40 +997,40 @@ public class BotCommands {
                             String bId = String.join(" ", args.subList(1, args.size()));
                             if(DataManager.guildBackupExists(e.getGuildId().get().asLong(), bId)){
                                 // already exists
-                                return Mono.just(true);
+                                return true;
                             }
                             boolean isPatronGuild = PatreonManager.isPatronGuild(e.getGuildId().get().asLong());
                             int backupCount = DataManager.getGuildBackupCount(e.getGuildId().get().asLong(), false);
                             if(backupCount > 2 && !isPatronGuild){
                                 // max 3 non patreon backups
-                                return Mono.just(true);
+                                return true;
                             }else if(backupCount > 14){
                                 // max 15 patreon backups
-                                return Mono.just(true);
+                                return true;
                             }
                             if(!DataManager.createGuildBackup(e.getGuild().block(), args.get(1), false))
                                 return BotUtils.sendErrorMessage(c);
                             // backup created
-                            return Mono.just(true);
+                            return true;
                         }else if (args.get(0).equalsIgnoreCase("restore")) {
                             DataManager.restoreGuildBackup(e.getGuild().block(), args.get(1));
                         }else if(args.get(0).equalsIgnoreCase("info") || args.get(0).equalsIgnoreCase("information")){
 
                         }
                     }
-                    return Mono.just(false);
+                    return false;
                 })
         ));
 
         commands.put(new String[]{"urbandictionary", "urban", "define"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
                 .filter(c -> BotUtils.checkChannelForNSFW(c))
                 .filter(c -> !args.isEmpty())
-                .flatMap(c -> {
+                .map(c -> {
                     UrbanDictionary dictionary = new UrbanDictionary(String.join(" ", args));
                     UrbanDictionary.UrbanDefinition definition = dictionary.getRandomDefinition();
                     if(definition == null){
                         c.createMessage("not found").subscribe();
-                        return Mono.just(true);
+                        return true;
                     }
                     c.createEmbed(ecs -> ecs
                             .setAuthor(definition.getAuthorName(), definition.getAuthorUrl(), null)
@@ -1039,7 +1041,7 @@ public class BotCommands {
                             .addField("Example", definition.getFormattedExample(), false)
                             .setTitle("Definition of \"" + definition.getWord() + "\"")
                     ).subscribe();
-                    return Mono.just(true);
+                    return true;
                 })
         ));
 

@@ -60,25 +60,22 @@ public class BotEvents {
                     return !(blocked.contains(e.getMessage().getChannelId().asLong()) || blocked.contains(e.getMessage().getChannel().ofType(Categorizable.class).block().getCategoryId().orElse(Snowflake.of(0)).asLong()));
                 })
                 .flatMap(e -> Mono.justOrEmpty(e.getMessage().getContent())
-                        .flatMap(content -> BotUtils.getPrefix(e.getGuildId().get().asLong())
+                        .flatMap(content -> Mono.just(BotUtils.getPrefix(e.getGuildId().get().asLong()))
                                 // commands
                                 .flatMap(pref -> Flux.fromIterable(BotCommands.commands.entrySet())
                                         .filter(cmd -> cmd.getValue().isUsableInGuilds())
                                         //.filter(cmd -> BotUtils.isCommand(content, cmd.getKey(), pref))
-                                        .flatMap(cmd -> BotUtils.truncateMessage(content, cmd.getKey(), pref)
+                                        .flatMap(cmd -> Mono.justOrEmpty(BotUtils.truncateMessage(content, cmd.getKey(), pref))
                                                 .flatMap(truncated -> e.getMessage().getChannel()
                                                         .filter(channel -> !cmd.getValue().isNsfwOnly() || BotUtils.checkChannelForNSFW(channel))
-                                                        .flatMap(channel -> BotUtils.messageToArgs(truncated)
+                                                        .flatMap(channel -> Mono.justOrEmpty(BotUtils.messageToArgs(truncated))
                                                                 .flatMap(args -> Mono.just(LocaleManager.getGuildLanguage(e.getGuildId().get().asLong()))
                                                                         .flatMap(lang -> cmd.getValue().getExecutable().execute(e, pref, args, lang).doOnError(Throwable::printStackTrace).onErrorReturn(false)
                                                                                 // SCRIPT EXECUTION START
                                                                                 .doOnNext(success -> ScriptExecutor.onCommandEvent(e, cmd.getKey(), args, success))
                                                                                 // SCRIPT EXECUTION END
                                                                                 .filter(success -> !success)
-                                                                                .flatMap(success -> {
-                                                                                    BotUtils.sendHelpMessage(channel, cmd.getKey()[0], pref, lang);
-                                                                                    return Mono.just(true);
-                                                                                })
+                                                                                .doOnNext(success -> BotUtils.sendHelpMessage(channel, cmd.getKey()[0], pref, lang))
                                                                                 .switchIfEmpty(Mono.just(true))
                                                                         )
                                                                 )
@@ -264,32 +261,42 @@ public class BotEvents {
         // delete server invites
         client.getEventDispatcher().on(MessageCreateEvent.class)
                 .filter(e -> e.getGuildId().isPresent())
+                .filter(e -> e.getMember().isPresent())
                 .filter(e -> e.getMessage().getContent().isPresent())
                 .filter(e -> !PermissionManager.hasPermission(e.getGuild().block(), e.getMember().get(), "sendInvites", false))
-                .flatMap(e -> {
-                    boolean delete = false;
-                    String warning = "";
-                    SQLGuild sg = DataManager.getGuild(e.getGuildId().get().asLong());
-                    if(sg != null){
-                        delete = sg.getDeleteInvites();
-                        warning = sg.getInviteWarning();
-                    }
-                    if(!delete && warning.length() == 0) return Mono.empty();
+                .flatMap(e -> e.getMessage().getChannel()
+                        .flatMap(channel -> {
+                            boolean delete = false;
+                            String warning = "";
+                            SQLGuild sg = DataManager.getGuild(e.getGuildId().get().asLong());
+                            if(sg != null){
+                                delete = sg.getDeleteInvites();
+                                warning = sg.getInviteWarning();
+                            }
+                            if(!delete && warning.length() == 0) return Mono.empty();
 
-                    Matcher matcher = Pattern.compile(BotUtils.INVITE_MATCHER).matcher(e.getMessage().getContent().get());
-                    List<String> usedInvites = new ArrayList<>();
-                    while (matcher.find())
-                        usedInvites.add(matcher.group());
-                    List<String> allowedInvites = DataManager.getAllowedInvites(e.getGuildId().get().asLong());
-                    Member m = e.getMember().get();
-                    for(String invite : usedInvites)
-                        if(!allowedInvites.contains(invite)){
-                            if(delete) e.getMessage().delete("Used invite " + invite + " which is not allowed").subscribe();
-                            if(warning.length() > 0) e.getMessage().getChannel().block().createMessage(warning.replace("%mention%", m.getMention()).replace("%username%", m.getUsername()).replace("%nickname%", m.getDisplayName()).replace("%discriminator%", m.getDiscriminator()).replace("%code%", invite)).subscribe();
-                            break;
-                        }
-                    return Mono.empty();
-                }).subscribe();
+                            Matcher matcher = Pattern.compile(BotUtils.INVITE_MATCHER).matcher(e.getMessage().getContent().get());
+                            List<String> usedInvites = new ArrayList<>();
+                            while (matcher.find())
+                                usedInvites.add(matcher.group());
+                            List<String> allowedInvites = DataManager.getAllowedInvites(e.getGuildId().get().asLong());
+                            Member m = e.getMember().get();
+                            for(String invite : usedInvites)
+                                if(!allowedInvites.contains(invite)){
+                                    if(delete) e.getMessage().delete("Used invite " + invite + " which is not allowed").subscribe();
+                                    if(warning.length() > 0) channel.createMessage(
+                                            warning .replace("%mention%", m.getMention())
+                                                    .replace("%username%", m.getUsername())
+                                                    .replace("%nickname%", m.getDisplayName())
+                                                    .replace("%discriminator%", m.getDiscriminator())
+                                                    .replace("%id%", m.getId().asString())
+                                                    .replace("%code%", invite))
+                                            .subscribe();
+                                    break;
+                                }
+                            return Mono.empty();
+                        })
+                ).subscribe();
         // dm actions
         client.getEventDispatcher().on(MessageCreateEvent.class)
                 .filter(e -> e.getGuildId().isEmpty())
@@ -298,9 +305,9 @@ public class BotEvents {
                 .filter(e -> e.getMessage().getAuthor().get().getId().asLong() != e.getClient().getSelfId().get().asLong())
                 .flatMap(e -> Flux.fromIterable(BotCommands.commands.entrySet())
                         .filter(cmd -> cmd.getValue().isUsableInDM())
-                        .flatMap(cmd -> BotUtils.truncateMessage(e.getMessage().getContent().get(), cmd.getKey(), "=")
+                        .flatMap(cmd -> Mono.just(BotUtils.truncateMessage(e.getMessage().getContent().get(), cmd.getKey(), "="))
                                 .flatMap(truncated -> e.getMessage().getChannel()
-                                        .flatMap(channel -> BotUtils.messageToArgs(truncated)
+                                        .flatMap(channel -> Mono.just(BotUtils.messageToArgs(truncated))
                                                 .flatMap(args -> Mono.just("en")
                                                 // TODO: add users to database, then use their selected language here
                                                 //.flatMap(args -> Mono.just(DataManager.getUser(e.getMessage().getAuthor().get().getId().asLong()).getLanguage())

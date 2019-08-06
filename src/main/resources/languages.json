@@ -238,6 +238,10 @@
         "nsfwChannelRequired": {
             "title": "NSFW channel required",
             "content": "This command is an NSFW command, please execute it in an NSFW channel."
+        },
+        "ratelimited": {
+            "title": "Rate limit exceeded",
+            "content": "You are rate limited. You are only allowed to perform this action {0} times in {1} milliseconds. Please wait and try again later."
         }
     }
 }

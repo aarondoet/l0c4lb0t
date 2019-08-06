@@ -83,12 +83,12 @@ public class BotUtils {
      * @param gId The ID of the {@link Guild}
      * @return The prefix
      */
-    public static Mono<String> getPrefix(long gId){
+    public static String getPrefix(long gId){
         SQLGuild sg = DataManager.getGuild(gId);
-        if(sg == null) return Mono.just("=");
+        if(sg == null) return "=";
         String pref = sg.getBotPrefix();
-        if(pref == null) return Mono.just("=");
-        return Mono.just(pref);
+        if(pref == null) return "=";
+        return pref;
     }
 
     /**
@@ -100,7 +100,7 @@ public class BotUtils {
      * @param content The content you want to parse
      * @return The content split into arguments
      */
-    public static Mono<List<String>> messageToArgs(String content){
+    public static List<String> messageToArgs(String content){
         List<String> args = new ArrayList<>();
         boolean escaped = false;
         boolean inQuotes = false;
@@ -141,7 +141,7 @@ public class BotUtils {
             currArg += "" + c;
         }
         if (!endedQuote) args.add(currArg);
-        return Mono.just(args);
+        return args;
     }
 
     /**
@@ -223,14 +223,14 @@ public class BotUtils {
      * @param prefix  The prefix
      * @return The truncated {@link String}
      */
-    public static Mono<String> truncateMessage(String content, String[] cmd, String prefix){
+    public static String truncateMessage(String content, String[] cmd, String prefix){
         prefix = escapeRegex(prefix);
         String bId = BotMain.client.getSelfId().get().asString();
         Matcher matcher = Pattern.compile("^(?:" + prefix + "|\\<@\\!?" + bId + "\\> ?)(?i)(?:" + String.join("|", cmd) + ")(?-i)(?: (.*))?$", Pattern.DOTALL).matcher(content);
         if(matcher.matches())
-            return Mono.just(matcher.group(1) == null ? "" : matcher.group(1));
+            return matcher.group(1) == null ? "" : matcher.group(1);
         else
-            return Mono.empty();
+            return null;
     }
 
     /**
@@ -483,9 +483,9 @@ public class BotUtils {
      * @param channel The {@link MessageChannel} the {@link Message} should be sent in
      * @return A {@link Mono} with the value true
      */
-    public static Mono<Boolean> sendErrorMessage(MessageChannel channel){
+    public static boolean sendErrorMessage(MessageChannel channel){
         channel.createMessage("An error occurred while performing this action.").subscribe();
-        return Mono.just(true);
+        return true;
     }
 
     /**
@@ -494,9 +494,9 @@ public class BotUtils {
      * @param channel The {@link MessageChannel} the {@link Message} should get sent in
      * @return A {@link Mono} with the value true
      */
-    public static Mono<Boolean> sendNoPermissionsMessage(MessageChannel channel){
+    public static boolean sendNoPermissionsMessage(MessageChannel channel){
         channel.createMessage("You don't have the permissions to perform this action.").subscribe();
-        return Mono.just(true);
+        return true;
     }
 
     /**
@@ -744,14 +744,14 @@ public class BotUtils {
      * @return True if the bot has all the permissions or false if it doesn't
      */
     public static Mono<Boolean> checkForPermissions(GuildMessageChannel messageChannel, Permission... permissions){
-        return messageChannel.getGuild().flatMap(g -> g.getMemberById(messageChannel.getClient().getSelfId().get())).flatMap(m -> m.getBasePermissions().flatMap(perms -> {
+        return messageChannel.getGuild().flatMap(g -> g.getMemberById(messageChannel.getClient().getSelfId().get())).flatMap(m -> m.getBasePermissions().map(perms -> {
             if(perms.containsAll(PermissionSet.of(permissions)))
-                return Mono.just(true);
+                return true;
             messageChannel.getEffectivePermissions(messageChannel.getClient().getSelfId().get())
                     .filter(p -> perms.contains(Permission.SEND_MESSAGES))
                     .flatMap(p -> messageChannel.createMessage("Sorry, but I need following permissions to perform this action: " + Arrays.stream(permissions).map(perm -> perm.name()).collect(Collectors.joining(", "))))
                     .subscribe();
-            return Mono.just(false);
+            return false;
         }));
     }
 
@@ -763,10 +763,10 @@ public class BotUtils {
      * @return True if the bot has all permissions or false if it doesn't
      */
     public static Mono<Boolean> checkForPermissions(Guild g, Permission... permissions){
-        return g.getMemberById(g.getClient().getSelfId().get()).flatMap(m -> m.getBasePermissions().flatMap(perms -> {
+        return g.getMemberById(g.getClient().getSelfId().get()).flatMap(m -> m.getBasePermissions().map(perms -> {
             if(perms.containsAll(PermissionSet.of(permissions)))
-                return Mono.just(true);
-            return Mono.just(false);
+                return true;
+            return false;
         }));
     }
 
@@ -790,13 +790,13 @@ public class BotUtils {
      * @return
      */
     public static Mono<Boolean> checkForChannelPermissions(GuildChannel checkChannel, GuildMessageChannel messageChannel, Permission... permissions){
-        return checkChannel.getEffectivePermissions(checkChannel.getClient().getSelfId().get()).flatMap(perms -> {
+        return checkChannel.getEffectivePermissions(checkChannel.getClient().getSelfId().get()).map(perms -> {
             if(perms.containsAll(PermissionSet.of(permissions)))
-                return Mono.just(true);
+                return true;
             if(messageChannel != null)
                 if(perms.contains(Permission.SEND_MESSAGES))
                     messageChannel.createMessage("Sorry, but I need following permissions in this channel to perform this action: " + Arrays.stream(permissions).map(p -> p.name()).collect(Collectors.joining(", "))).subscribe();
-            return Mono.just(false);
+            return false;
         });
     }
 
