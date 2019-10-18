@@ -18,6 +18,7 @@ public class BotMain {
         BotEvents.registerScriptEvents(client);
         DynamicVoiceChannels.initialize(client);
         BotUtils.startAutoBackups(client);
+        BotUtils.startRichPresences(client);
         HTTPServer.startServer();
         client.login().block();
     }

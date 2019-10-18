@@ -5,13 +5,16 @@ import DataManager.*;
 import DataManager.SQLGuild;
 import Scripts.ScriptExecutor;
 import discord4j.core.DiscordClient;
+import discord4j.core.event.domain.VoiceStateUpdateEvent;
 import discord4j.core.event.domain.channel.CategoryCreateEvent;
 import discord4j.core.event.domain.channel.TextChannelCreateEvent;
 import discord4j.core.event.domain.channel.VoiceChannelCreateEvent;
 import discord4j.core.event.domain.guild.GuildCreateEvent;
+import discord4j.core.event.domain.guild.GuildUpdateEvent;
 import discord4j.core.event.domain.lifecycle.ReadyEvent;
 import discord4j.core.event.domain.message.MessageCreateEvent;
 import discord4j.core.event.domain.message.ReactionAddEvent;
+import discord4j.core.object.entity.Channel;
 import discord4j.core.object.entity.GuildMessageChannel;
 import discord4j.core.object.entity.Member;
 import discord4j.core.object.entity.User;
@@ -50,33 +53,42 @@ public class BotEvents {
                         DataManager.initializeGuild(e.getGuild());
                 })
                 .subscribe();
+        client.getEventDispatcher().on(GuildUpdateEvent.class)
+                .doOnNext(e -> DataManager.updateGuild(e.getCurrent()))
+                .subscribe();
         // commands
         client.getEventDispatcher().on(MessageCreateEvent.class)
-                .filter(e -> e.getGuildId().isPresent())
-                .filter(e -> e.getMessage().getAuthor().get().getId().asLong() != e.getClient().getSelfId().get().asLong())
-                .filter(e -> !e.getMessage().getAuthor().get().isBot())
-                .filter(e -> {
+                .filter(e -> e.getMember().isPresent()) // no webhooks and only in guilds
+                .filter(e -> !e.getMessage().getAuthor().get().isBot()) // no bots
+                .filterWhen(e -> {
                     List<Long> blocked = DataManager.getBlockedChannels(e.getGuildId().get().asLong());
-                    return !(blocked.contains(e.getMessage().getChannelId().asLong()) || blocked.contains(e.getMessage().getChannel().ofType(Categorizable.class).block().getCategoryId().orElse(Snowflake.of(0)).asLong()));
+                    //return !(blocked.contains(e.getMessage().getChannelId().asLong()) || blocked.contains(e.getMessage().getChannel().ofType(Categorizable.class).block().getCategoryId().orElse(Snowflake.of(0)).asLong()));
+                    return e.getMessage().getChannel().ofType(Categorizable.class).map(c -> c.getCategoryId().orElse(Snowflake.of(0))).map(categoryId -> blocked.contains(categoryId.asLong()) || blocked.contains(e.getMessage().getChannelId().asLong()));
                 })
                 .flatMap(e -> Mono.justOrEmpty(e.getMessage().getContent())
                         .flatMap(content -> Mono.just(BotUtils.getPrefix(e.getGuildId().get().asLong()))
                                 // commands
                                 .flatMap(pref -> Flux.fromIterable(BotCommands.commands.entrySet())
                                         .filter(cmd -> cmd.getValue().isUsableInGuilds())
-                                        //.filter(cmd -> BotUtils.isCommand(content, cmd.getKey(), pref))
+                                        .filterWhen(cmd -> e.getGuild().map(g -> g.getOwnerId().asLong() == e.getMember().get().getId().asLong() || !cmd.getValue().requiresOwner()))
+                                        //.filter(cmd -> BotUtils.isCommand(content, cmd.getKey(), pref)) // removed, bc it is part of truncateMessage now (returns empty when it is not the command)
                                         .flatMap(cmd -> Mono.justOrEmpty(BotUtils.truncateMessage(content, cmd.getKey(), pref))
-                                                .flatMap(truncated -> e.getMessage().getChannel()
+                                                .flatMap(truncated -> e.getMessage().getChannel().ofType(GuildMessageChannel.class)
                                                         .filter(channel -> !cmd.getValue().isNsfwOnly() || BotUtils.checkChannelForNSFW(channel))
                                                         .flatMap(channel -> Mono.justOrEmpty(BotUtils.messageToArgs(truncated))
                                                                 .flatMap(args -> Mono.just(LocaleManager.getGuildLanguage(e.getGuildId().get().asLong()))
-                                                                        .flatMap(lang -> cmd.getValue().getExecutable().execute(e, pref, args, lang).doOnError(Throwable::printStackTrace).onErrorReturn(false)
-                                                                                // SCRIPT EXECUTION START
-                                                                                .doOnNext(success -> ScriptExecutor.onCommandEvent(e, cmd.getKey(), args, success))
-                                                                                // SCRIPT EXECUTION END
-                                                                                .filter(success -> !success)
-                                                                                .doOnNext(success -> BotUtils.sendHelpMessage(channel, cmd.getKey()[0], pref, lang))
-                                                                                .switchIfEmpty(Mono.just(true))
+                                                                        .flatMap(lang -> e.getGuild()
+                                                                                .flatMap(guild -> {
+                                                                                    if(!PermissionManager.hasPermission(guild, e.getMember().get(), channel, cmd.getValue().getBotPermission(), cmd.getValue().usableByEveryone(), cmd.getValue().getDefaultPerms()))
+                                                                                        return Mono.just(BotUtils.sendNoPermissionsMessage(channel));
+                                                                                    return cmd.getValue().getExecutable().execute(e, pref, args, lang).doOnError(Throwable::printStackTrace).onErrorReturn(false)
+                                                                                            // SCRIPT EXECUTION START
+                                                                                            .doOnNext(success -> ScriptExecutor.onCommandEvent(e, cmd.getKey(), args, success))
+                                                                                            // SCRIPT EXECUTION END
+                                                                                            .filter(success -> !success)
+                                                                                            .doOnNext(success -> BotUtils.sendHelpMessage(channel, cmd.getKey()[0], pref, lang))
+                                                                                            .defaultIfEmpty(true);
+                                                                                })
                                                                         )
                                                                 )
                                                         )
@@ -120,11 +132,11 @@ public class BotEvents {
                                 m.removeReaction(e.getEmoji(), e.getUserId()).subscribe();
                                 return Mono.empty();
                             }
-                            if(!PermissionManager.hasPermission(e.getGuild().block(), e.getUser().block().asMember(e.getGuildId().get()).block(), "vote", true)){
+                            if(!PermissionManager.hasPermission(e.getGuild().block(), e.getUser().flatMap(u -> u.asMember(e.getGuildId().get())).block(), "vote", true)){
                                 m.removeReaction(e.getEmoji(), e.getUserId()).subscribe();
                                 return Mono.empty();
                             }
-                            boolean multiVote = m.getEmbeds().get(0).getFooter().get().getText().equals("Multiple votes per user") || PermissionManager.hasPermission(e.getGuild().block(), e.getUser().block().asMember(e.getGuildId().get()).block(), "multiVote", false);
+                            boolean multiVote = m.getEmbeds().get(0).getFooter().get().getText().equals("Multiple votes per user") || PermissionManager.hasPermission(e.getGuild().block(), e.getUser().flatMap(u -> u.asMember(e.getGuildId().get())).block(), "multiVote", false);
                             if(!multiVote){
                                 Flux.fromIterable(m.getReactions())
                                         .flatMap(r -> m.getReactors(r.getEmoji())
@@ -137,7 +149,7 @@ public class BotEvents {
                                             return cnt > 1;
                                         }).subscribe();
                             }
-                            if(!PermissionManager.hasPermission(e.getGuild().block(), e.getUser().block().asMember(e.getGuildId().get()).block(), "voteWhenEnded", false)){
+                            if(!PermissionManager.hasPermission(e.getGuild().block(), e.getUser().flatMap(u -> u.asMember(e.getGuildId().get())).block(), "voteWhenEnded", false)){
                                 if(m.getEmbeds().get(0).getTimestamp().get().isBefore(Instant.now())){
                                     m.removeReaction(e.getEmoji(), e.getUserId()).subscribe();
                                 }
@@ -263,7 +275,8 @@ public class BotEvents {
                 .filter(e -> e.getGuildId().isPresent())
                 .filter(e -> e.getMember().isPresent())
                 .filter(e -> e.getMessage().getContent().isPresent())
-                .filter(e -> !PermissionManager.hasPermission(e.getGuild().block(), e.getMember().get(), "sendInvites", false))
+                //.filter(e -> !PermissionManager.hasPermission(e.getGuild().block(), e.getMember().get(), "sendInvites", false))
+                .filterWhen(e -> e.getGuild().map(g -> !PermissionManager.hasPermission(g, e.getMember().get(), "sendInvites", false)))
                 .flatMap(e -> e.getMessage().getChannel()
                         .flatMap(channel -> {
                             boolean delete = false;
@@ -305,7 +318,7 @@ public class BotEvents {
                 .filter(e -> e.getMessage().getAuthor().get().getId().asLong() != e.getClient().getSelfId().get().asLong())
                 .flatMap(e -> Flux.fromIterable(BotCommands.commands.entrySet())
                         .filter(cmd -> cmd.getValue().isUsableInDM())
-                        .flatMap(cmd -> Mono.just(BotUtils.truncateMessage(e.getMessage().getContent().get(), cmd.getKey(), "="))
+                        .flatMap(cmd -> Mono.justOrEmpty(BotUtils.truncateMessage(e.getMessage().getContent().get(), cmd.getKey(), "="))
                                 .flatMap(truncated -> e.getMessage().getChannel()
                                         .flatMap(channel -> Mono.just(BotUtils.messageToArgs(truncated))
                                                 .flatMap(args -> Mono.just("en")
@@ -359,7 +372,7 @@ public class BotEvents {
                 .filter(e -> ScriptExecutor.executeScript(e.getGuild().block(), e.getMessage().getContent().get(), replace, e.getMessage().getTimestamp()))
                 .subscribe();
         client.getEventDispatcher().on(MessageCreateEvent.class)
-                .filter(e ->  e.getGuildId().isPresent())
+                .filter(e ->  e.getMember().isPresent()) // only in guilds and no webhook messages
                 .filter(e -> {
                     replace.clear();
                     ScriptExecutor.addMemberVariables(replace, e.getMember().get());
@@ -368,37 +381,38 @@ public class BotEvents {
                     return e.getMember().get().getId().asLong() != e.getClient().getSelfId().get().asLong();
                 })
                 .flatMap(e -> Flux.fromIterable(DataManager.getScripts(e.getGuildId().get().asLong(), ScriptExecutor.ScriptEvent.onMessage))
-                        .filter(script -> ScriptExecutor.executeScript(e.getGuild().block(), script, replace, e.getMessage().getTimestamp()))
+                        //.filter(script -> ScriptExecutor.executeScript(e.getGuild().block(), script, replace, e.getMessage().getTimestamp()))
+                        .filterWhen(script -> e.getGuild().map(g -> ScriptExecutor.executeScript(g, script, replace, e.getMessage().getTimestamp())))
                 )
                 .subscribe();
         client.getEventDispatcher().on(CategoryCreateEvent.class)
-                .filter(e -> {
+                .doOnNext(e -> {
                     replace.clear();
                     ScriptExecutor.addChannelVariables(replace, e.getCategory());
-                    return true;
                 })
                 .flatMap(e -> Flux.fromIterable(BotUtils.addLists(DataManager.getScripts(e.getCategory().getGuildId().asLong(), ScriptExecutor.ScriptEvent.onCategoryCreated), DataManager.getScripts(e.getCategory().getGuildId().asLong(), ScriptExecutor.ScriptEvent.onChannelCreated)))
-                        .filter(script -> ScriptExecutor.executeScript(e.getCategory().getGuild().block(), script, replace, null))
+                        //.filter(script -> ScriptExecutor.executeScript(e.getCategory().getGuild().block(), script, replace, null))
+                        .filterWhen(script -> e.getCategory().getGuild().map(g -> ScriptExecutor.executeScript(g, script, replace, null)))
                 )
                 .subscribe();
         client.getEventDispatcher().on(TextChannelCreateEvent.class)
-                .filter(e -> {
+                .doOnNext(e -> {
                     replace.clear();
                     ScriptExecutor.addChannelVariables(replace, e.getChannel());
-                    return true;
                 })
                 .flatMap(e -> Flux.fromIterable(BotUtils.addLists(DataManager.getScripts(e.getChannel().getGuildId().asLong(), ScriptExecutor.ScriptEvent.onTextChannelCreated), DataManager.getScripts(e.getChannel().getGuildId().asLong(), ScriptExecutor.ScriptEvent.onChannelCreated)))
-                        .filter(script -> ScriptExecutor.executeScript(e.getChannel().getGuild().block(), script, replace, null))
+                        //.filter(script -> ScriptExecutor.executeScript(e.getChannel().getGuild().block(), script, replace, null))
+                        .filterWhen(script -> e.getChannel().getGuild().map(g -> ScriptExecutor.executeScript(g, script, replace, null)))
                 )
                 .subscribe();
         client.getEventDispatcher().on(VoiceChannelCreateEvent.class)
-                .filter(e -> {
+                .doOnNext(e -> {
                     replace.clear();
                     ScriptExecutor.addChannelVariables(replace, e.getChannel());
-                    return true;
                 })
                 .flatMap(e -> Flux.fromIterable(BotUtils.addLists(DataManager.getScripts(e.getChannel().getGuildId().asLong(), ScriptExecutor.ScriptEvent.onVoiceChannelCreated), DataManager.getScripts(e.getChannel().getGuildId().asLong(), ScriptExecutor.ScriptEvent.onChannelCreated)))
-                        .filter(script -> ScriptExecutor.executeScript(e.getChannel().getGuild().block(), script, replace, null))
+                        //.filter(script -> ScriptExecutor.executeScript(e.getChannel().getGuild().block(), script, replace, null))
+                        .filterWhen(script -> e.getChannel().getGuild().map(g -> ScriptExecutor.executeScript(g, script, replace, null)))
                 )
                 .subscribe();
     }

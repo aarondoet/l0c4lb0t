@@ -814,7 +814,7 @@ public class ScriptExecutor {
                             for (int i = 0; i < args.size(); i++)
                                 for (Map.Entry<String, String> variable : replace.entrySet())
                                     args.set(i, args.get(i).replace("%" + variable.getKey() + "%", variable.getValue()));
-                                boolean con = action.getValue().execute(g, args, replace, variableName).defaultIfEmpty(true).block();
+                                boolean con = action.getValue().execute(g, args, replace, variableName).blockOptional().orElse(true);
                                 if(action.getKey().toLowerCase().startsWith("if")){
                                     execute = con;
                                     requiredIndention = indention + 1;

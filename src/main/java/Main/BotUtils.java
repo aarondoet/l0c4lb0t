@@ -11,6 +11,9 @@ import discord4j.core.DiscordClient;
 import discord4j.core.DiscordClientBuilder;
 import discord4j.core.object.Embed;
 import discord4j.core.object.entity.*;
+import discord4j.core.object.presence.Activity;
+import discord4j.core.object.presence.Presence;
+import discord4j.core.object.presence.Status;
 import discord4j.core.object.reaction.ReactionEmoji;
 import discord4j.core.object.util.Permission;
 import discord4j.core.object.util.PermissionSet;
@@ -28,7 +31,9 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -834,6 +839,18 @@ public class BotUtils {
         while(length-- > 0)
             sb.append(available.charAt(rn.nextInt(available.length())));
         return sb.toString();
+    }
+
+    private static List<Function<DiscordClient, Mono<Presence>>> presences = Arrays.asList(
+            client -> Mono.just(Presence.online(Activity.watching("out for help commands"))),
+            client -> client.getGuilds().count().map(count -> Presence.online(Activity.watching(count + " guilds"))),
+            client -> Mono.just(Presence.online(Activity.watching("you")))
+    );
+    public static void startRichPresences(DiscordClient client){
+        Flux.interval(Duration.ofSeconds(5), Duration.ofSeconds(20))
+                .flatMap(x -> presences.get((int)(x % presences.size())).apply(client))
+                .flatMap(client::updatePresence)
+                .subscribe();
     }
 
 }
