@@ -7,3 +7,4 @@ target/
 *.jar
 src/main/java/Main/Tokens.java
 src/main/java/Main/PrivateFunctions.java
+*.java___jb_tmp___

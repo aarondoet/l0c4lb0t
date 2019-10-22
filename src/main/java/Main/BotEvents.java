@@ -46,15 +46,22 @@ public class BotEvents {
                 .subscribe();
         // initialize nonexistent guilds and update existing ones
         client.getEventDispatcher().on(GuildCreateEvent.class)
-                .doOnNext(e -> {
-                    if(DataManager.guildIsRegistered(e.getGuild().getId().asLong()))
-                        DataManager.updateGuild(e.getGuild());
-                    else
-                        DataManager.initializeGuild(e.getGuild());
-                })
+                .doOnNext(e -> DataManager.initializeGuild(e.getGuild()))
                 .subscribe();
         client.getEventDispatcher().on(GuildUpdateEvent.class)
-                .doOnNext(e -> DataManager.updateGuild(e.getCurrent()))
+                .doOnNext(e -> DataManager.initializeGuild(e.getCurrent()))
+                .subscribe();
+        // stats
+        client.getEventDispatcher().on(MessageCreateEvent.class)
+                .doOnNext(e -> {
+                    if(e.getMessage().getAuthor().map(User::getId).map(Snowflake::asLong).orElse(0L).equals(e.getClient().getSelfId().map(Snowflake::asLong).orElse(1L))){
+                        DataManager.updateStats("sent_message_count");
+                        e.getGuildId().map(Snowflake::asLong).ifPresentOrElse(gId -> DataManager.updateGuildStats(gId, "sent_message_count"), () -> DataManager.updateStats("sent_dm_count"));
+                    }else{
+                        DataManager.updateStats("received_message_count");
+                        e.getGuildId().map(Snowflake::asLong).ifPresentOrElse(gId -> DataManager.updateGuildStats(gId, "received_message_count"), () -> DataManager.updateStats("received_dm_count"));
+                    }
+                })
                 .subscribe();
         // commands
         client.getEventDispatcher().on(MessageCreateEvent.class)
@@ -63,7 +70,7 @@ public class BotEvents {
                 .filterWhen(e -> {
                     List<Long> blocked = DataManager.getBlockedChannels(e.getGuildId().get().asLong());
                     //return !(blocked.contains(e.getMessage().getChannelId().asLong()) || blocked.contains(e.getMessage().getChannel().ofType(Categorizable.class).block().getCategoryId().orElse(Snowflake.of(0)).asLong()));
-                    return e.getMessage().getChannel().ofType(Categorizable.class).map(c -> c.getCategoryId().orElse(Snowflake.of(0))).map(categoryId -> blocked.contains(categoryId.asLong()) || blocked.contains(e.getMessage().getChannelId().asLong()));
+                    return e.getMessage().getChannel().ofType(Categorizable.class).map(c -> c.getCategoryId().orElse(Snowflake.of(0))).map(categoryId -> !blocked.contains(categoryId.asLong()) || !blocked.contains(e.getMessage().getChannelId().asLong()));
                 })
                 .flatMap(e -> Mono.justOrEmpty(e.getMessage().getContent())
                         .flatMap(content -> Mono.just(BotUtils.getPrefix(e.getGuildId().get().asLong()))
@@ -73,6 +80,11 @@ public class BotEvents {
                                         .filterWhen(cmd -> e.getGuild().map(g -> g.getOwnerId().asLong() == e.getMember().get().getId().asLong() || !cmd.getValue().requiresOwner()))
                                         //.filter(cmd -> BotUtils.isCommand(content, cmd.getKey(), pref)) // removed, bc it is part of truncateMessage now (returns empty when it is not the command)
                                         .flatMap(cmd -> Mono.justOrEmpty(BotUtils.truncateMessage(content, cmd.getKey(), pref))
+                                                // command found
+                                                .doOnNext(truncated -> {
+                                                    DataManager.updateStats("received_command_count");
+                                                    DataManager.updateGuildStats(e.getGuildId().get().asLong(), "received_command_count");
+                                                })
                                                 .flatMap(truncated -> e.getMessage().getChannel().ofType(GuildMessageChannel.class)
                                                         .filter(channel -> !cmd.getValue().isNsfwOnly() || BotUtils.checkChannelForNSFW(channel))
                                                         .flatMap(channel -> Mono.justOrEmpty(BotUtils.messageToArgs(truncated))
@@ -97,6 +109,11 @@ public class BotEvents {
                                         // custom commands
                                         .switchIfEmpty(Flux.fromIterable(DataManager.getCustomCommands(e.getGuildId().get().asLong()).entrySet())
                                                 .filter(cmd -> BotUtils.isCommand(content, new String[]{cmd.getKey()}, pref))
+                                                // custom command found
+                                                .doOnNext(truncated -> {
+                                                    DataManager.updateStats("received_custom_command_count");
+                                                    DataManager.updateGuildStats(e.getGuildId().get().asLong(), "received_custom_command_count");
+                                                })
                                                 .flatMap(cmd -> e.getMessage().getChannel()
                                                         .flatMap(c -> c.createMessage(mcs -> mcs.setContent(cmd.getValue())))
                                                         .doOnNext(x -> ScriptExecutor.onCustomCommandEvent(e, cmd.getKey()))
@@ -104,8 +121,12 @@ public class BotEvents {
                                                 )
                                         )
                                         // no command found
-                                        .switchIfEmpty(Mono.justOrEmpty(DataManager.getGuild(e.getGuildId().get().asLong()).getUnknownCommandMessage())
+                                        .switchIfEmpty(Mono.just(Optional.ofNullable(DataManager.getGuild(e.getGuildId().get().asLong()).getUnknownCommandMessage()).orElse(""))
                                                 .filter(em -> BotUtils.isCommand(content, new String[]{"[a-zA-Z0-9]+"}, pref))
+                                                .doOnNext(em -> {
+                                                    DataManager.updateStats("received_unknown_command_count");
+                                                    DataManager.updateGuildStats(e.getGuildId().get().asLong(), "received_unknown_command_count");
+                                                })
                                                 .doOnNext(em -> ScriptExecutor.onUnknownCommand(e))
                                                 .filter(em -> em.trim().length() > 0)
                                                 .flatMap(em -> e.getMessage().getChannel()
@@ -176,7 +197,7 @@ public class BotEvents {
         client.getEventDispatcher().on(ReactionAddEvent.class)
                 .flatMap(e -> e.getMessage()
                         .filter(m -> e.getUserId().asLong() != e.getClient().getSelfId().get().asLong())
-                        .filter(m -> BotUtils.isBotSuggestionMessage(m))
+                        .filter(BotUtils::isBotSuggestionMessage)
                         .doOnNext(m -> {
                             long itemsPerPage = 5;
                             AtomicLong currentPage = new AtomicLong(Long.parseLong(m.getEmbeds().get(0).getFooter().get().getText().substring(5, m.getEmbeds().get(0).getFooter().get().getText().indexOf('/'))));

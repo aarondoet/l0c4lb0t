@@ -93,7 +93,19 @@
             "about": {
                 "help": [
                     "`{0}about` - show some information about the bot"
-                ]
+                ],
+                "info": {
+                    "title": "Hi, I am l0c4lb0t",
+                    "content": [
+                        "I am l0c4lb0t - a multi purpose bot made by {1}.",
+                        "The goal of this bot is to replace all moderation bots. How I want to achieve this? My goal is to have every moderation feature you might need, thus destroying the need to have multiple bots of that kind.",
+                        "Having only one bot for moderation is a big improvement. You only need to know one prefix, there are no two bots with the same prefix and your member list is not flooded with bots you only use once in a while.",
+                        "Of course, achieving this goal is very hard and this is the part I need to ask you for help. If you think there is a feature missing, give the `{0}botsuggestion` command a try. Suggest the feature you need and wait until you can finally kick the bot with that feature, because you don't need it anymore!",
+                        "While the goal is to have all features needed for a moderation bot, I am still very open about features that are not for moderating your server. Just suggest whatever you want. (I won't add any roleplay features though. I think there are way too many possibilities and ideas you can implement in a roleplay bot, that I don't want to start adding them. There are many other bots for roleplay that you can use instead and fit your needs better than a roleplay feature in this bot.)",
+                        "",
+                        "If you like this bot and you want to support me, please consider [becoming a patron](https://patreon.com/l0c4lh057)."
+                    ]
+                }
             },
             "anticaps": {
                 "help": [
@@ -187,7 +199,52 @@
             },
             "report": {},
             "resetnicks": {},
-            "stats": {},
+            "stats": {
+                "help": "",
+                "title": "Bot Stats",
+                "guild": {
+                    "fields": [
+                        {
+                            "title": "General Stats",
+                            "content": [
+                                "**{0}** guilds",
+                                "**{1}** members (**{2}** distinct members)",
+                                "**{3}** messages sent",
+                                "**{4}** messages received",
+                                "**{5}** DMs sent",
+                                "**{6}** DMs received",
+                                "**{7}** commands received",
+                                "**{8}** unknown commands received",
+                                "**{9}** custom commands received"
+                            ]
+                        },
+                        {
+                            "title": "Guild stats",
+                            "content": [
+                                "**{10}** members",
+                                "**{11}** messages sent",
+                                "**{12}** messages received",
+                                "**{13}** commands received",
+                                "**{14}** unknown commands received",
+                                "**{15}** custom commands received"
+                            ]
+                        }
+                    ]
+                },
+                "dm": {
+                    "content": [
+                        "**{0}** guilds",
+                        "**{1}** members (**{2}** distinct members)",
+                        "**{3}** messages sent",
+                        "**{4}** messages received",
+                        "**{5}** DMs sent",
+                        "**{6}** DMs received",
+                        "**{7}** commands received",
+                        "**{8}** unknown commands received",
+                        "**{9}** custom commands received"
+                    ]
+                }
+            },
             "suggestions": {},
             "token": {
                 "help": [

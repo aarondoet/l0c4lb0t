@@ -4,6 +4,7 @@ import DataManager.DataManager;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import discord4j.core.object.entity.Guild;
+import discord4j.core.spec.EmbedCreateSpec;
 import discord4j.core.spec.MessageCreateSpec;
 import reactor.util.annotation.Nullable;
 
@@ -45,6 +46,22 @@ public class LocaleManager {
         for(String k : key.split("\\."))
             curr = curr.get(k);
         return curr;
+    }
+
+    public static EmbedCreateSpec addEmbedFields(String lang, EmbedCreateSpec spec, String key, String... args){
+        if(!languages.has(lang)) lang = "en";
+        JsonNode el = getLanguageElement(lang, key);
+        el.elements().forEachRemaining(field -> {
+            JsonNode e = field.get("content");
+            String content;
+            if(e.isArray()){
+                List<String> lines = new ArrayList<>();
+                e.elements().forEachRemaining(line -> lines.add(BotUtils.formatString(line.asText(),args)));
+                content = String.join("\n", lines);
+            }else content = e.asText();
+            spec.addField(BotUtils.formatString(field.get("title").asText(), args), content, field.has("inline") && field.get("inline").asBoolean());
+        });
+        return spec;
     }
 
     public static Consumer<MessageCreateSpec> getLanguageMessage(String lang, String key, String... args){

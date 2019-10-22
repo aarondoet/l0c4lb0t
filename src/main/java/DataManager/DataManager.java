@@ -130,7 +130,8 @@ public class DataManager {
                     "sent_command_count INT," +
                     "sent_public_message_count INT," +
                     "sent_unknown_command_count INT," +
-                    "sent_custom_command_count INT" +
+                    "sent_custom_command_count INT," +
+                    "PRIMARY KEY(guild_id, user_id)" +
                     ")";
             String createUsersTable = "CREATE TABLE IF NOT EXISTS " + Table.USERS.getName() + " (" +
                     "user_id BIGINT," +
@@ -143,7 +144,8 @@ public class DataManager {
                     "sent_custom_command_count INT," +
                     "bot_ban_reason TEXT," +
                     "public_chat_ban_reason TEXT," +
-                    "language TINYTEXT" +
+                    "language TINYTEXT," +
+                    "PRIMARY KEY(user_id)" +
                     ")";
             String createGuildsTable = "CREATE TABLE IF NOT EXISTS " + Table.GUILDS.getName() + " (" +
                     "guild_id BIGINT," +
@@ -164,12 +166,14 @@ public class DataManager {
                     "delete_invites BOOLEAN," +
                     "invite_warning TEXT," +
                     "sent_message_count INT," +
-                    "sent_command_count INT," +
-                    "sent_public_message_count INT," +
-                    "sent_unknown_command_count INT," +
-                    "sent_custom_command_count INT," +
+                    "received_message_count INT," +
+                    "received_command_count INT," +
+                    "received_public_message_count INT," +
+                    "received_unknown_command_count INT," +
+                    "received_custom_command_count INT," +
                     "token TINYTEXT," +
-                    "readonly_token TINYTEXT" +
+                    "readonly_token TINYTEXT," +
+                    "PRIMARY KEY(guild_id)" +
                     ")";
             String createCustomCommandsTable = "CREATE TABLE IF NOT EXISTS " + Table.CUSTOM_COMMANDS.getName() + " (" +
                     "guild_id BIGINT," +
@@ -217,15 +221,16 @@ public class DataManager {
                     "content MEDIUMTEXT" +
                     ")";
             String createStatsTable = "CREATE TABLE IF NOT EXISTS " + Table.BOT_STATS.getName() + " (" +
-                    "sent_message_count INT," +
-                    "public_message_count INT," +
-                    "received_message_count INT," +
-                    "received_command_count INT," +
-                    "received_custom_command_count INT," +
-                    "received_unknown_command_count INT," +
-                    "guild_count INT," +
-                    "user_count INT" +
+                    "sent_message_count INT DEFAULT 0," +
+                    "public_message_count INT DEFAULT 0," +
+                    "received_message_count INT DEFAULT 0," +
+                    "received_command_count INT DEFAULT 0," +
+                    "received_custom_command_count INT DEFAULT 0," +
+                    "received_unknown_command_count INT DEFAULT 0," +
+                    "received_dm_count INT DEFAULT 0," +
+                    "sent_dm_count INT DEFAULT 0" +
                     ")";
+            String createStatsTable2 = "INSERT " + Table.BOT_STATS.getName() + " (sent_message_count) SELECT 0 FROM dual WHERE NOT EXISTS (SELECT 1 FROM " + Table.BOT_STATS.getName() + ")";
             String createBotSuggestionsTable = "CREATE TABLE IF NOT EXISTS " + Table.BOT_SUGGESTIONS.getName() + " (" +
                     "id INT NOT NULL PRIMARY KEY AUTO_INCREMENT," +
                     "title TINYTEXT," +
@@ -271,6 +276,8 @@ public class DataManager {
             stmt.execute(createBotSuggestionNotificationsTable);
             stmt.execute(createSuggestionsTable);
             stmt.execute(createSuggestionNotificationTable);
+            stmt.execute(createStatsTable);
+            stmt.execute(createStatsTable2);
 
             String createServerBackupTable = "CREATE TABLE IF NOT EXISTS " + Table.BACKUP_GENERAL.getName() + " (" +
                     "backup_id TINYTEXT," +
@@ -448,21 +455,26 @@ public class DataManager {
                     "delete_invites," +                 // 9
                     "invite_warning," +                 // 10
                     "sent_message_count," +             // 11
-                    "sent_command_count," +             // 12
-                    "sent_public_message_count," +      // 13
-                    "sent_unknown_command_count," +     // 14
-                    "sent_custom_command_count," +      // 15
-                    "token," +                          // 16
-                    "icon_url," +                       // 17
-                    "join_role," +                      // 18
-                    "join_message," +                   // 19
-                    "leave_message," +                  // 20
-                    "ban_message," +                    // 21
-                    "unknown_command_message," +        // 22
-                    "suggestion_channel_id," +          // 23
-                    "readonly_token" +                  // 24
+                    "received_message_count," +          // 12
+                    "received_command_count," +         // 13
+                    "received_public_message_count," +  // 14
+                    "received_unknown_command_count," + // 15
+                    "received_custom_command_count," +  // 16
+                    "token," +                          // 17
+                    "icon_url," +                       // 18
+                    "join_role," +                      // 19
+                    "join_message," +                   // 20
+                    "leave_message," +                  // 21
+                    "ban_message," +                    // 22
+                    "unknown_command_message," +        // 23
+                    "suggestion_channel_id," +          // 24
+                    "readonly_token" +                  // 25
                     ")" +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)" +
+                    " ON DUPLICATE KEY UPDATE " +
+                    "name=?," +                         // 26
+                    "icon_url=?," +                     // 27
+                    "owner_id=?");                      // 28
             stmt.setLong(1, g.getId().asLong());
             stmt.setString(2, g.getName());
             stmt.setTimestamp(3, Timestamp.from(BotUtils.getSnowflakeCreationDate(g.getId().asLong())));
@@ -478,34 +490,19 @@ public class DataManager {
             stmt.setInt(13, 0);
             stmt.setInt(14, 0);
             stmt.setInt(15, 0);
-            stmt.setString(16, generateToken());
-            stmt.setString(17, g.getIconUrl(Image.Format.PNG).orElse(""));
-            stmt.setLong(18, 0);
-            stmt.setString(19, "");
+            stmt.setInt(16, 0);
+            stmt.setString(17, generateToken());
+            stmt.setString(18, g.getIconUrl(Image.Format.PNG).orElse(""));
+            stmt.setLong(19, 0);
             stmt.setString(20, "");
             stmt.setString(21, "");
             stmt.setString(22, "");
-            stmt.setLong(23, 0L);
-            stmt.setString(24, generateToken());
-            stmt.executeUpdate();
-        } catch (SQLException ex) {
-            ex.printStackTrace();
-        }finally {
-            DbUtils.closeQuietly(stmt);
-            DbUtils.closeQuietly(con);
-        }
-    }
-
-    public static void updateGuild(Guild g){
-        Connection con = null;
-        PreparedStatement stmt = null;
-        try {
-            con = getConnection();
-            stmt = con.prepareStatement("UPDATE " + Table.GUILDS.getName() + " SET name=?,icon_url=?,owner_id=? WHERE guild_id=? LIMIT 1");
-            stmt.setString(1, g.getName());
-            stmt.setString(2, g.getIconUrl(Image.Format.PNG).orElse(""));
-            stmt.setLong(3, g.getOwnerId().asLong());
-            stmt.setLong(4, g.getId().asLong());
+            stmt.setString(23, "");
+            stmt.setLong(24, 0L);
+            stmt.setString(25, generateToken());
+            stmt.setString(26, g.getName());
+            stmt.setString(27, g.getIconUrl(Image.Format.PNG).orElse(""));
+            stmt.setLong(28, g.getOwnerId().asLong());
             stmt.executeUpdate();
         } catch (SQLException ex) {
             ex.printStackTrace();
@@ -543,10 +540,11 @@ public class DataManager {
                     rs.getBoolean("delete_invites"),
                     rs.getString("invite_warning"),
                     rs.getInt("sent_message_count"),
-                    rs.getInt("sent_command_count"),
-                    rs.getInt("sent_public_message_count"),
-                    rs.getInt("sent_unknown_command_count"),
-                    rs.getInt("sent_custom_command_count"),
+                    rs.getInt("received_message_count"),
+                    rs.getInt("received_command_count"),
+                    rs.getInt("received_public_message_count"),
+                    rs.getInt("received_unknown_command_count"),
+                    rs.getInt("received_custom_command_count"),
                     rs.getString("token"),
                     rs.getLong("suggestion_channel_id"),
                     rs.getString("readonly_token")
@@ -594,10 +592,11 @@ public class DataManager {
                         rs.getBoolean("delete_invites"),
                         rs.getString("invite_warning"),
                         rs.getInt("sent_message_count"),
-                        rs.getInt("sent_command_count"),
-                        rs.getInt("sent_public_message_count"),
-                        rs.getInt("sent_unknown_command_count"),
-                        rs.getInt("sent_custom_command_count"),
+                        rs.getInt("received_message_count"),
+                        rs.getInt("received_command_count"),
+                        rs.getInt("received_public_message_count"),
+                        rs.getInt("received_unknown_command_count"),
+                        rs.getInt("received_custom_command_count"),
                         rs.getString("token"),
                         rs.getLong("suggestion_channel_id"),
                         rs.getString("readonly_token")
@@ -2048,6 +2047,71 @@ public class DataManager {
             DbUtils.closeQuietly(con);
         }
         return success;
+    }
+
+    public static boolean updateStats(String stat){
+        Connection con = null;
+        PreparedStatement stmt = null;
+        boolean success = false;
+        try{
+            con = getConnection();
+            stmt = con.prepareStatement("UPDATE " + Table.BOT_STATS.getName() + " SET "+stat+"="+stat+"+1");
+            stmt.executeUpdate();
+            success = true;
+        }catch(SQLException ex){
+            ex.printStackTrace();
+        }finally{
+            DbUtils.closeQuietly(stmt);
+            DbUtils.closeQuietly(con);
+        }
+        return success;
+    }
+
+    public static boolean updateGuildStats(long gId, String stat){
+        Connection con = null;
+        PreparedStatement stmt = null;
+        boolean success = false;
+        try{
+            con = getConnection();
+            stmt = con.prepareStatement("UPDATE " + Table.GUILDS.getName() + " SET "+stat+"="+stat+"+1 WHERE guild_id=?");
+            stmt.setLong(1, gId);
+            stmt.executeUpdate();
+            success = true;
+        }catch(SQLException ex){
+            ex.printStackTrace();
+        }finally{
+            DbUtils.closeQuietly(stmt);
+            DbUtils.closeQuietly(con);
+        }
+        return false;
+    }
+
+    public static SQLStats getBotStats(){
+        Connection con = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+        SQLStats stats = null;
+        try{
+            con = getConnection();
+            stmt = con.prepareStatement("SELECT * FROM " + Table.BOT_STATS.getName());
+            rs = stmt.executeQuery();
+            if(rs.next())
+                stats = new SQLStats(rs.getInt("sent_message_count"),
+                        rs.getInt("received_message_count"),
+                        rs.getInt("received_command_count"),
+                        rs.getInt("received_unknown_command_count"),
+                        rs.getInt("received_custom_command_count"),
+                        rs.getInt("received_dm_count"),
+                        rs.getInt("sent_dm_count")
+                );
+        }catch(SQLException ex){
+            ex.printStackTrace();
+        }finally{
+            DbUtils.closeQuietly(rs);
+            DbUtils.closeQuietly(stmt);
+            DbUtils.closeQuietly(con);
+        }
+        return stats == null ? new SQLStats() : stats;
     }
 
 }

@@ -144,11 +144,12 @@ public class HTTPServer {
                                     .put("join_message", guild.getJoinMessage())
                                     .put("join_role", guild.getJoinRole())
                                     .put("leave_message", guild.getLeaveMessage())
-                                    .put("sent_command_count", guild.getSentCommandCount())
-                                    .put("sent_custom_command_count", guild.getSentCustomCommandCount())
                                     .put("sent_message_count", guild.getSentMessageCount())
-                                    .put("sent_public_message_count", guild.getSentPublicMessageCount())
-                                    .put("sent_unknown_command_count", guild.getSentUnknownCommandCount());
+                                    .put("received_message_count", guild.getReceivedMessageCount())
+                                    .put("received_command_count", guild.getReceivedCommandCount())
+                                    .put("received_custom_command_count", guild.getReceivedCustomCommandCount())
+                                    //.put("received_public_message_count", guild.getReceivedPublicMessageCount())
+                                    .put("received_unknown_command_count", guild.getReceivedUnknownCommandCount());
                             result.set("whitelisted_invites", whitelistedInvites);
                             result.set("dynamic_voice_channels", dvcs);
                             result.put("blocked_channels", blockedChannels);

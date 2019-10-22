@@ -562,8 +562,72 @@ public class BotCommands {
                 }),
                 false
         ));
-        commands.put(new String[]{"about", "info", "l0c4lb0t"}, new Command((e, prefix, args, lang) -> Mono.just(true), false));
-        commands.put(new String[]{"stats"}, new Command((e, prefix, args, lang) -> Mono.just(true), false));
+        commands.put(new String[]{"about", "info", "l0c4lb0t"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+                .flatMap(c -> c.createEmbed(ecs -> ecs
+                        .setTitle(LocaleManager.getLanguageString(lang, "commands.about.info.title"))
+                        .setDescription(LocaleManager.getLanguageString(lang, "commands.about.info.content",
+                                prefix,
+                                BotUtils.l0c4lh057.getUsername()+"#"+BotUtils.l0c4lh057.getDiscriminator()
+                        ))
+                        .setColor(BotUtils.botColor)
+                ))
+                .map(x -> true)
+                , false, true));
+        commands.put(new String[]{"stats"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+                .flatMap(c -> e.getClient().getGuilds().count()
+                        .flatMap(guildCount -> e.getClient().getGuilds().flatMap(Guild::getMembers).count()
+                                .flatMap(memberCount -> e.getClient().getGuilds().flatMap(Guild::getMembers).map(User::getId).distinct().count()
+                                        .flatMap(distinctMemberCount -> e.getGuild().flatMapMany(Guild::getMembers).count()
+                                                .flatMap(guildMemberCount -> Mono.just(DataManager.getBotStats())
+                                                        .flatMap(stats -> {
+                                                            if(e.getGuildId().isPresent()){
+                                                                return Mono.just(DataManager.getGuild(e.getGuildId().get().asLong())).flatMap(g -> c.createEmbed(ecs -> LocaleManager.addEmbedFields(lang, ecs, "commands.stats.guild.fields",
+                                                                                ""+guildCount,
+                                                                                ""+memberCount,
+                                                                                ""+distinctMemberCount,
+                                                                                ""+stats.getSentMessageCount(),
+                                                                                ""+stats.getReceivedMessageCount(),
+                                                                                ""+stats.getSentDMCount(),
+                                                                                ""+stats.getReceivedDMCount(),
+                                                                                ""+stats.getReceivedCommandCount(),
+                                                                                ""+stats.getReceivedUnknownCommandCount(),
+                                                                                ""+stats.getReceivedCustomCommandCount(),
+                                                                                ""+guildMemberCount,
+                                                                                ""+g.getSentMessageCount(),
+                                                                                ""+g.getReceivedMessageCount(),
+                                                                                ""+g.getReceivedCommandCount(),
+                                                                                ""+g.getReceivedUnknownCommandCount(),
+                                                                                ""+g.getReceivedCustomCommandCount()
+                                                                        )
+                                                                        .setTitle(LocaleManager.getLanguageString(lang, "commands.stats.title"))
+                                                                        .setColor(BotUtils.botColor)
+                                                                ));
+                                                            }else{
+                                                                return c.createEmbed(ecs -> ecs
+                                                                        .setTitle(LocaleManager.getLanguageString(lang,"commands.stats.title"))
+                                                                        .setDescription(LocaleManager.getLanguageString(lang, "commands.stats.dm.content",
+                                                                                ""+guildCount,
+                                                                                ""+memberCount,
+                                                                                ""+distinctMemberCount,
+                                                                                ""+stats.getSentMessageCount(),
+                                                                                ""+stats.getReceivedMessageCount(),
+                                                                                ""+stats.getSentDMCount(),
+                                                                                ""+stats.getReceivedDMCount(),
+                                                                                ""+stats.getReceivedCommandCount(),
+                                                                                ""+stats.getReceivedUnknownCommandCount(),
+                                                                                ""+stats.getReceivedCustomCommandCount())
+                                                                        )
+                                                                        .setColor(BotUtils.botColor)
+                                                                );
+                                                            }
+                                                        })
+                                                )
+                                        )
+                                )
+                        )
+                )
+                .map(x -> true)
+                , false, true));
 
         /* MODERATION */
 
@@ -612,7 +676,7 @@ public class BotCommands {
                 .map(x -> true),
                 false
         ));
-        commands.put(new String[]{"dog", "doggo", "goodboi"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+        commands.put(new String[]{"dog", "doggo", "goodboi", "goodboy"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
                 .flatMap(c -> c.createMessage(SFWUtils.getDog()))
                 .map(x -> true),
                 false
