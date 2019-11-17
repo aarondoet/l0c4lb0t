@@ -3,6 +3,7 @@ package DataManager;
 import java.time.Instant;
 import java.util.Optional;
 import DataManager.DataManager.SuggestionStatus;
+import lombok.Getter;
 
 public class SQLFeedback{
 
@@ -48,16 +49,16 @@ public class SQLFeedback{
         }
     }
 
-    private long guildId = 0L;
-    private String title = "";
-    private String content = "";
-    private SuggestionStatus status = SuggestionStatus.CREATED;
+    @Getter private long guildId = 0L;
+    @Getter private String title = "";
+    @Getter private String content = "";
+    @Getter private SuggestionStatus status = SuggestionStatus.CREATED;
     private String detailedStatus = "";
-    private int id = 0;
-    private long creatorId = 0L;
-    private Instant createdAt = Instant.MIN;
-    private Instant lastUpdate = Instant.MIN;
-    private FeedbackType type;
+    @Getter private int id = 0;
+    @Getter private long creatorId = 0L;
+    @Getter private Instant createdAt = Instant.MIN;
+    @Getter private Instant lastUpdate = Instant.MIN;
+    @Getter private FeedbackType type;
 
     public SQLFeedback(long guildId, String title, String content, byte status, String detailedStatus, int id, long creatorId, Instant createdAt, Instant lastUpdate, FeedbackType type) {
         this.guildId = guildId;
@@ -72,15 +73,6 @@ public class SQLFeedback{
         this.type = type;
     }
 
-    public long getGuildId() {return guildId;}
-    public String getTitle() {return title;}
-    public String getContent() {return content;}
-    public SuggestionStatus getStatus() {return status;}
     public Optional<String> getDetailedStatus() {return Optional.ofNullable(detailedStatus);}
-    public int getId() {return id;}
-    public long getCreatorId() {return creatorId;}
-    public Instant getCreatedAt() {return createdAt;}
-    public Instant getLastUpdate() {return lastUpdate;}
-    public FeedbackType getType() {return type;}
 
 }

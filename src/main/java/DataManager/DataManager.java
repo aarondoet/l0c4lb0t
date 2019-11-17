@@ -10,6 +10,7 @@ import discord4j.core.object.reaction.ReactionEmoji;
 import discord4j.core.object.util.Image;
 import discord4j.core.object.util.PermissionSet;
 import discord4j.core.object.util.Snowflake;
+import lombok.Getter;
 import org.apache.commons.dbutils.DbUtils;
 import reactor.core.publisher.Mono;
 
@@ -28,7 +29,8 @@ public class DataManager {
 
     private static HikariConfig config = new HikariConfig();
     private static HikariDataSource ds;
-    static {
+
+    static{
         config.setJdbcUrl(url);
         config.setUsername(Tokens.MYSQL_USERNAME);
         config.setPassword(Tokens.MYSQL_PASSWORD);
@@ -38,7 +40,8 @@ public class DataManager {
         config.addDataSourceProperty("useServerPrepStmts", "true");
         ds = new HikariDataSource(config);
     }
-    private static Connection getConnection() throws SQLException {
+
+    private static Connection getConnection() throws SQLException{
         return ds.getConnection();
     }
 
@@ -70,8 +73,14 @@ public class DataManager {
         BACKUP_BANS("backupbans");
 
         private final String name;
-        Table(String name){this.name = name;}
-        public String getName(){return this.name;}
+
+        Table(String name){
+            this.name = name;
+        }
+
+        public String getName(){
+            return this.name;
+        }
     }
 
     public enum SuggestionStatus {
@@ -86,11 +95,29 @@ public class DataManager {
         private final String name;
         private final Color color;
         private final ReactionEmoji emoji;
-        SuggestionStatus(byte status, String name, Color color, ReactionEmoji emoji){this.status = status;this.name = name;this.color = color;this.emoji = emoji;}
-        public byte getStatus(){return this.status;}
-        public String getName(){return this.name;}
-        public Color getColor(){return this.color;}
-        public ReactionEmoji getEmoji(){return this.emoji;}
+
+        SuggestionStatus(byte status, String name, Color color, ReactionEmoji emoji){
+            this.status = status;
+            this.name = name;
+            this.color = color;
+            this.emoji = emoji;
+        }
+
+        public byte getStatus(){
+            return this.status;
+        }
+
+        public String getName(){
+            return this.name;
+        }
+
+        public Color getColor(){
+            return this.color;
+        }
+
+        public ReactionEmoji getEmoji(){
+            return this.emoji;
+        }
 
         public static SuggestionStatus getSuggestionStatus(byte status){
             for(SuggestionStatus s : SuggestionStatus.values())
@@ -98,14 +125,15 @@ public class DataManager {
                     return s;
             return null;
         }
+
         public static SuggestionStatus getSuggestionStatus(String status){
             try{
                 byte b = Byte.parseByte(status);
                 return getSuggestionStatus(b);
-            }catch (NumberFormatException ex){
+            }catch(NumberFormatException ex){
                 try{
                     return SuggestionStatus.valueOf(status.toUpperCase());
-                }catch (IllegalArgumentException ex2){
+                }catch(IllegalArgumentException ex2){
                     for(SuggestionStatus s : SuggestionStatus.values())
                         if(s.getName().equalsIgnoreCase(status))
                             return s;
@@ -118,7 +146,7 @@ public class DataManager {
     public static void initialize(){
         Connection con = null;
         Statement stmt = null;
-        try {
+        try{
             con = getConnection();
             String createMembersTable = "CREATE TABLE IF NOT EXISTS " + Table.MEMBERS.getName() + " (" +
                     "user_id BIGINT," +
@@ -358,11 +386,11 @@ public class DataManager {
             Timer timer = new Timer();
             timer.schedule(new TimerTask() {
                 @Override
-                public void run() {
+                public void run(){
                     initialize();
                 }
             }, 50);
-        }finally {
+        }finally{
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
@@ -373,15 +401,15 @@ public class DataManager {
         PreparedStatement stmt = null;
         ResultSet rs = null;
         boolean registered = false;
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("SELECT guild_id FROM " + Table.GUILDS.getName() + " WHERE guild_id=? LIMIT 1");
             stmt.setLong(1, gId);
             rs = stmt.executeQuery();
             registered = rs.next();
-        } catch (SQLException ex) {
+        }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(rs);
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
@@ -402,12 +430,13 @@ public class DataManager {
         else
             return token.toString();
     }
+
     private static boolean isTokenRegistered(String token){
         Connection con = null;
         PreparedStatement stmt = null;
         ResultSet rs = null;
         boolean registered = true;
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("SELECT guild_id FROM " + Table.GUILDS.getName() + " WHERE token=? OR readonly_token=? LIMIT 1");
             stmt.setString(1, token);
@@ -416,13 +445,14 @@ public class DataManager {
             registered = rs.next();
         }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(rs);
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
         return registered;
     }
+
     public static String renewToken(Long gId){
         String token = generateToken();
         if(setGuild(gId, "token", token, JDBCType.VARCHAR))
@@ -430,6 +460,7 @@ public class DataManager {
         else
             return null;
     }
+
     public static String renewReadonlyToken(Long gId){
         String token = generateToken();
         if(setGuild(gId, "readonly_token", token, JDBCType.VARCHAR))
@@ -441,7 +472,7 @@ public class DataManager {
     public static void initializeGuild(Guild g){
         Connection con = null;
         PreparedStatement stmt = null;
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("INSERT INTO " + Table.GUILDS.getName() + " (" +
                     "guild_id," +                       // 1
@@ -504,12 +535,58 @@ public class DataManager {
             stmt.setString(27, g.getIconUrl(Image.Format.PNG).orElse(""));
             stmt.setLong(28, g.getOwnerId().asLong());
             stmt.executeUpdate();
-        } catch (SQLException ex) {
+        }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
+    }
+
+    public static void initializeUser(User u){
+        /*Connection con = null;
+        PreparedStatement stmt = null;
+        try{
+            con = getConnection();
+            stmt = con.prepareStatement("INSERT INTO " + Table.USERS.getName() + " (" +
+                    ")" +
+                    "VALUES (?,?,?)" +
+                    "ON DUPLICATE KEY UPDATE" +
+                    "x=?," +
+                    "y=?," +
+                    "z=?"
+            );
+
+            stmt.executeUpdate();
+        }catch(SQLException ex){
+            ex.printStackTrace();
+        }finally{
+            DbUtils.closeQuietly(stmt);
+            DbUtils.closeQuietly(con);
+        }*/
+    }
+
+    public static void initializeMember(Member m){
+        /*Connection con = null;
+        PreparedStatement stmt = null;
+        try{
+            con = getConnection();
+            stmt = con.prepareStatement("INSERT INTO " + Table.MEMBERS.getName() + " (" +
+                    ")" +
+                    "VALUES (?,?,?)" +
+                    "ON DUPLICATE KEY UPDATE" +
+                    "x=?," +
+                    "y=?," +
+                    "z=?"
+            );
+
+            stmt.executeUpdate();
+        }catch(SQLException ex){
+            ex.printStackTrace();
+        }finally{
+            DbUtils.closeQuietly(stmt);
+            DbUtils.closeQuietly(con);
+        }*/
     }
 
     public static SQLGuild getGuild(Long gId){
@@ -517,7 +594,7 @@ public class DataManager {
         PreparedStatement stmt = null;
         ResultSet rs = null;
         SQLGuild g = new SQLGuild();
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("SELECT * FROM " + Table.GUILDS.getName() + " WHERE guild_id=? LIMIT 1");
             stmt.setLong(1, gId);
@@ -551,7 +628,7 @@ public class DataManager {
             );
         }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(rs);
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
@@ -564,7 +641,7 @@ public class DataManager {
         PreparedStatement stmt = null;
         ResultSet rs = null;
         SQLGuild g = new SQLGuild();
-        try {
+        try{
             con = getConnection();
             if(allowReadOnly){
                 stmt = con.prepareStatement("SELECT * FROM " + Table.GUILDS.getName() + " WHERE token=? OR readonly_token=? LIMIT 1");
@@ -603,7 +680,7 @@ public class DataManager {
                 );
         }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(rs);
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
@@ -615,7 +692,7 @@ public class DataManager {
         Connection con = null;
         PreparedStatement stmt = null;
         boolean success = false;
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("UPDATE " + Table.GUILDS.getName() + " SET " + key + "=? WHERE guild_id=? LIMIT 1");
             stmt.setObject(1, value, type);
@@ -624,7 +701,7 @@ public class DataManager {
             success = true;
         }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
@@ -636,7 +713,7 @@ public class DataManager {
         PreparedStatement stmt = null;
         ResultSet rs = null;
         SQLUser u = null;
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("SELECT * FROM " + Table.USERS.getName() + " WHERE user_id=? LIMIT 1");
             stmt.setLong(1, uId);
@@ -654,9 +731,9 @@ public class DataManager {
                     rs.getString("public_chat_ban_reason"),
                     rs.getString("language")
             );
-        } catch(SQLException ex) {
+        }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(rs);
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
@@ -668,16 +745,16 @@ public class DataManager {
         Connection con = null;
         PreparedStatement stmt = null;
         boolean success = false;
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("UPDATE " + Table.USERS.getName() + " SET " + key + "=? WHERE user_id=? LIMIT 1");
             stmt.setObject(1, value, type);
             stmt.setLong(2, uId);
             stmt.executeUpdate();
             success = true;
-        } catch(SQLException ex) {
+        }catch(SQLException ex){
             ex.printStackTrace();
-        } finally {
+        }finally{
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
@@ -689,7 +766,7 @@ public class DataManager {
         PreparedStatement stmt = null;
         ResultSet rs = null;
         SQLMember m = new SQLMember();
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("SELECT * FROM " + Table.MEMBERS.getName() + " WHERE guild_id=? AND user_id=? LIMIT 1");
             stmt.setLong(1, gId);
@@ -706,9 +783,9 @@ public class DataManager {
                         rs.getInt("sent_public_message_count"),
                         rs.getInt("sent_unknown_command_count"),
                         rs.getInt("sent_custom_command_count"));
-        } catch(SQLException ex) {
+        }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(rs);
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
@@ -720,7 +797,7 @@ public class DataManager {
         Connection con = null;
         PreparedStatement stmt = null;
         boolean success = false;
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("UPDATE " + Table.USERS.getName() + " SET " + key + "=? WHERE guild_id=? AND user_id=? LIMIT 1");
             stmt.setObject(1, value, type);
@@ -728,9 +805,9 @@ public class DataManager {
             stmt.setLong(3, uId);
             stmt.executeUpdate();
             success = true;
-        } catch(SQLException ex) {
+        }catch(SQLException ex){
             ex.printStackTrace();
-        } finally {
+        }finally{
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
@@ -742,16 +819,16 @@ public class DataManager {
         PreparedStatement stmt = null;
         ResultSet rs = null;
         List<String> dvcs = new ArrayList<>();
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("SELECT * FROM " + Table.DVCS.getName() + " WHERE guild_id=?");
             stmt.setLong(1, gId);
             rs = stmt.executeQuery();
             while(rs.next())
                 dvcs.add(rs.getString("name"));
-        } catch (SQLException ex) {
+        }catch(SQLException ex){
             ex.printStackTrace();
-        } finally {
+        }finally{
             DbUtils.closeQuietly(rs);
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
@@ -774,46 +851,48 @@ public class DataManager {
             isDVC = rs.next();
         }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(rs);
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
         return isDVC;
     }
+
     public static boolean addDVC(Long gId, String name){
         Connection con = null;
         PreparedStatement stmt = null;
         boolean success = false;
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("INSERT INTO " + Table.DVCS.getName() + " (guild_id, name) VALUES (?, ?)");
             stmt.setLong(1, gId);
             stmt.setString(2, name);
             stmt.executeUpdate();
             success = true;
-        }catch (SQLException ex){
+        }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
         return success;
     }
+
     public static boolean removeDVC(Long gId, String name){
         Connection con = null;
         PreparedStatement stmt = null;
         boolean success = false;
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("DELETE FROM " + Table.DVCS.getName() + " WHERE guild_id=? AND name=? LIMIT 1");
             stmt.setLong(1, gId);
             stmt.setString(2, name);
             stmt.executeUpdate();
             success = true;
-        }catch (SQLException ex){
+        }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
@@ -825,50 +904,52 @@ public class DataManager {
         PreparedStatement stmt = null;
         ResultSet rs = null;
         List<SQLPermissions> p = new ArrayList<>();
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("SELECT * FROM " + Table.PERMISSIONS.getName() + " WHERE guild_id=? AND action=?");
             stmt.setLong(1, gId);
             stmt.setString(2, cmd);
             rs = stmt.executeQuery();
-            while (rs.next()){
+            while(rs.next()){
                 p.add(new SQLPermissions(rs.getLong("guild_id"), rs.getLong("holder_id"), rs.getString("action"), rs.getInt("type")));
             }
         }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(rs);
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
         return p;
     }
+
     public static List<SQLPermissions> getPermissions(Long gId){
         Connection con = null;
         PreparedStatement stmt = null;
         ResultSet rs = null;
         List<SQLPermissions> p = new ArrayList<>();
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("SELECT * FROM " + Table.PERMISSIONS.getName() + " WHERE guild_id=?");
             stmt.setLong(1, gId);
             rs = stmt.executeQuery();
-            while (rs.next())
+            while(rs.next())
                 p.add(new SQLPermissions(rs.getLong("guild_id"), rs.getLong("holder_id"), rs.getString("action"), rs.getInt("type")));
         }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(rs);
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
         return p;
     }
+
     public static boolean setPermissions(Long gId, String cmd, int type, Long hId){
         Connection con = null;
         PreparedStatement stmt = null;
         boolean success = false;
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("INSERT INTO " + Table.PERMISSIONS.getName() + " (guild_id, action, holder_id, type) VALUES (?, ?, ?, ?)");
             stmt.setLong(1, gId);
@@ -880,58 +961,61 @@ public class DataManager {
             success = true;
         }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
         return success;
     }
+
     public static boolean removePermissions(Long gId, String cmd){
         Connection con = null;
         PreparedStatement stmt = null;
         boolean success = false;
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("");
 
             return true;
         }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
         return success;
     }
+
     public static boolean removePermissions(Long gId, String cmd, Long hId){
         Connection con = null;
         PreparedStatement stmt = null;
         boolean success = false;
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("");
 
             return true;
         }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
         return success;
     }
+
     public static boolean removePermissions(Long gId, String cmd, int type, Long hId){
         Connection con = null;
         PreparedStatement stmt = null;
         boolean success = false;
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("");
 
             return true;
         }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
@@ -942,7 +1026,7 @@ public class DataManager {
         Connection con = null;
         PreparedStatement stmt = null;
         List<String> allowed = new ArrayList<>();
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("SELECT * FROM " + Table.WHITELISTED_INVITES.getName() + " WHERE guild_id=? LIMIT 1");
             stmt.setLong(1, gId);
@@ -951,17 +1035,18 @@ public class DataManager {
                 allowed.add(rs.getString("code"));
         }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
         return allowed;
     }
+
     public static boolean allowInvite(Long gId, String invite){
         Connection con = null;
         PreparedStatement stmt = null;
         boolean success = false;
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("INSERT INTO " + Table.WHITELISTED_INVITES.getName() + " (guild_id, code) VALUES (?, ?)");
             stmt.setLong(1, gId);
@@ -970,17 +1055,18 @@ public class DataManager {
             success = true;
         }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
         return success;
     }
+
     public static boolean disallowInvite(Long gId, String invite){
         Connection con = null;
         PreparedStatement stmt = null;
         boolean success = false;
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("DELETE FROM " + Table.WHITELISTED_INVITES.getName() + " WHERE guild_id=? AND code=? LIMIT 1");
             stmt.setLong(1, gId);
@@ -989,18 +1075,19 @@ public class DataManager {
             success = true;
         }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
         return success;
     }
+
     public static boolean isInviteAllowed(Long gId, String invite){
         Connection con = null;
         PreparedStatement stmt = null;
         ResultSet rs = null;
         boolean allowed = true;
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("SELECT * FROM " + Table.WHITELISTED_INVITES.getName() + " WHERE guild_id=? AND code=? LIMIT 1");
             stmt.setLong(1, gId);
@@ -1009,7 +1096,7 @@ public class DataManager {
             allowed = rs.next();
         }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(rs);
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
@@ -1021,7 +1108,7 @@ public class DataManager {
         Connection con = null;
         PreparedStatement stmt = null;
         boolean success = false;
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("INSERT INTO " + Table.SCRIPTS.getName() + " (guild_id, type, name, content) VALUES (?, ?, ?, ?)");
             stmt.setLong(1, gId);
@@ -1032,18 +1119,19 @@ public class DataManager {
             success = true;
         }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
         return success;
     }
+
     public static List<String> getScripts(Long gId, ScriptExecutor.ScriptEvent event){
         Connection con = null;
         PreparedStatement stmt = null;
         ResultSet rs = null;
         List<String> scripts = new ArrayList<>();
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("SELECT * FROM " + Table.SCRIPTS.getName() + " WHERE guild_id=? AND type=?");
             stmt.setLong(1, gId);
@@ -1053,7 +1141,7 @@ public class DataManager {
                 scripts.add(rs.getString("content"));
         }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(rs);
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
@@ -1066,22 +1154,23 @@ public class DataManager {
         PreparedStatement stmt = null;
         ResultSet rs = null;
         List<Long> channels = new ArrayList<>();
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("SELECT * FROM " + Table.BLOCKED_CHANNELS.getName() + " WHERE guild_id=?");
             stmt.setLong(1, gId);
             rs = stmt.executeQuery();
-            while (rs.next())
+            while(rs.next())
                 channels.add(rs.getLong("channel_id"));
-        }catch (SQLException ex){
+        }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(rs);
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
         return channels;
     }
+
     public static boolean addBlockedChannel(Long gId, Long cId){
         Connection con = null;
         PreparedStatement stmt = null;
@@ -1093,28 +1182,29 @@ public class DataManager {
             stmt.setLong(2, cId);
             stmt.executeUpdate();
             success = true;
-        }catch (SQLException ex){
+        }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
         return success;
     }
+
     public static boolean removeBlockedChannel(Long gId, Long cId){
         Connection con = null;
         PreparedStatement stmt = null;
         boolean success = false;
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("DELETE FROM " + Table.BLOCKED_CHANNELS.getName() + " WHERE guild_id=? AND channel_id=? LIMIT 1");
             stmt.setLong(1, gId);
             stmt.setLong(2, cId);
             stmt.executeUpdate();
             success = true;
-        }catch (SQLException ex){
+        }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
@@ -1127,27 +1217,28 @@ public class DataManager {
         PreparedStatement stmt = null;
         ResultSet rs = null;
         Map<String, String> commands = new HashMap<>();
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("SELECT * FROM " + Table.CUSTOM_COMMANDS.getName() + " WHERE guild_id=?");
             stmt.setLong(1, gId);
             rs = stmt.executeQuery();
-            while (rs.next())
+            while(rs.next())
                 commands.put(rs.getString("command"), rs.getString("response"));
-        }catch (SQLException ex){
+        }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(rs);
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
         return commands;
     }
+
     public static boolean addCustomCommand(Long gId, String cmd, String response){
         Connection con = null;
         PreparedStatement stmt = null;
         boolean success = false;
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("INSERT INTO " + Table.CUSTOM_COMMANDS.getName() + " (guild_id, command, response) VALUES (?, ?, ?)");
             stmt.setLong(1, gId);
@@ -1157,17 +1248,18 @@ public class DataManager {
             success = true;
         }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
         return success;
     }
+
     public static boolean removeCustomCommand(Long gId, String cmd){
         Connection con = null;
         PreparedStatement stmt = null;
         boolean success = false;
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("DELETE FROM " + Table.CUSTOM_COMMANDS.getName() + " WHERE guild_id=? AND command=? LIMIT 1");
             stmt.setLong(1, gId);
@@ -1176,7 +1268,7 @@ public class DataManager {
             success = true;
         }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
@@ -1188,7 +1280,7 @@ public class DataManager {
         PreparedStatement stmt = null;
         ResultSet rs = null;
         int suggestionId = -1;
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("INSERT INTO " + Table.BOT_SUGGESTIONS.getName() + " (id, user_id, title, content, created_at, status, detailed_status, last_update) VALUES (NULL, ?, ?, ?, ?, ?, ?, ?)", Statement.RETURN_GENERATED_KEYS);
             stmt.setLong(1, uId);
@@ -1202,15 +1294,16 @@ public class DataManager {
             rs = stmt.getGeneratedKeys();
             if(rs.next())
                 suggestionId = rs.getInt(1);
-        }catch (SQLException ex){
+        }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(rs);
             DbUtils.closeQuietly(con);
         }
         return suggestionId;
     }
+
     public static SQLBotSuggestion getBotSuggestion(int sId){
         Connection con = null;
         PreparedStatement stmt = null;
@@ -1232,15 +1325,16 @@ public class DataManager {
                         rs.getTimestamp("created_at").toInstant(),
                         rs.getTimestamp("last_update").toInstant()
                 );
-        }catch (SQLException ex){
+        }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(rs);
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
         return suggestion;
     }
+
     public static List<SQLBotSuggestion> getBotSuggestions(long pageNumber, long itemsPerPage){
         Connection con = null;
         PreparedStatement stmt = null;
@@ -1248,16 +1342,16 @@ public class DataManager {
         List<SQLBotSuggestion> suggestions = new ArrayList<>();
         try{
             con = getConnection();
-            long startId = (pageNumber-1)*itemsPerPage+1;
+            long startId = (pageNumber - 1) * itemsPerPage + 1;
             stmt = con.prepareStatement(
                     "SELECT * FROM " + Table.BOT_SUGGESTIONS.getName() + " WHERE status<>? AND id>=" +
-                        "(SELECT id FROM" +
+                            "(SELECT id FROM" +
                             "(SELECT id FROM " + Table.BOT_SUGGESTIONS.getName() + " WHERE status<>? ORDER BY id ASC LIMIT ?)" +
-                        "AS mostInner ORDER BY id DESC LIMIT 1)" +
-                    "ORDER BY id ASC LIMIT ?"
+                            "AS mostInner ORDER BY id DESC LIMIT 1)" +
+                            "ORDER BY id ASC LIMIT ?"
             );
             stmt.setByte(1, SuggestionStatus.DELETED.getStatus());
-            stmt.setByte(2,SuggestionStatus.DELETED.getStatus());
+            stmt.setByte(2, SuggestionStatus.DELETED.getStatus());
             stmt.setLong(3, startId);
             stmt.setLong(4, itemsPerPage);
             rs = stmt.executeQuery();
@@ -1272,15 +1366,16 @@ public class DataManager {
                         rs.getTimestamp("created_at").toInstant(),
                         rs.getTimestamp("last_update").toInstant()
                 ));
-        }catch (SQLException ex){
+        }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(rs);
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
         return suggestions;
     }
+
     public static long getBotSuggestionPageCount(long itemsPerPage){
         Connection con = null;
         PreparedStatement stmt = null;
@@ -1293,39 +1388,41 @@ public class DataManager {
             rs = stmt.executeQuery();
             if(rs.next())
                 count = rs.getLong("count");
-        }catch (SQLException ex){
+        }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(rs);
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
         return Math.round(Math.ceil((double)count / (double)itemsPerPage));
     }
+
     public static boolean setBotSuggestion(int sId, String key, Object value, JDBCType type){
         Connection con = null;
         PreparedStatement stmt = null;
         boolean success = false;
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("UPDATE " + Table.BOT_SUGGESTIONS.getName() + " SET " + key + "=? WHERE id=? LIMIT 1");
             stmt.setObject(1, value, type);
             stmt.setInt(2, sId);
             stmt.executeUpdate();
             success = true;
-        }catch (SQLException ex){
+        }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
         return success;
     }
+
     public static boolean setBotSuggestionStatus(int sId, byte status, String detailedStatus, Instant editedTimestamp){
         Connection con = null;
         PreparedStatement stmt = null;
         boolean success = false;
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("UPDATE " + Table.BOT_SUGGESTIONS.getName() + " SET status=?, detailed_status=?, last_update=? WHERE id=? LIMIT 1");
             stmt.setByte(1, status);
@@ -1334,9 +1431,9 @@ public class DataManager {
             stmt.setInt(4, sId);
             stmt.executeUpdate();
             success = true;
-        }catch (SQLException ex){
+        }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
@@ -1348,22 +1445,23 @@ public class DataManager {
         PreparedStatement stmt = null;
         ResultSet rs = null;
         List<Long> uIds = new ArrayList<>();
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("SELECT * FROM " + Table.BOT_SUGGESTION_NOTIFICATIONS.getName() + " WHERE suggestion_id=?");
             stmt.setInt(1, sId);
             rs = stmt.executeQuery();
             while(rs.next())
                 uIds.add(rs.getLong("user_id"));
-        }catch (SQLException ex){
+        }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(rs);
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
         return uIds;
     }
+
     public static boolean setBotSuggestionNotification(Long uId, int sId, boolean notify){
         Connection con = null;
         PreparedStatement stmt = null;
@@ -1378,9 +1476,9 @@ public class DataManager {
             stmt.setInt(2, sId);
             stmt.executeUpdate();
             success = true;
-        }catch (SQLException ex){
+        }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
@@ -1393,7 +1491,7 @@ public class DataManager {
         PreparedStatement stmt2 = null;
         ResultSet rs = null;
         SQLFeedback suggestion = null;
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("INSERT INTO " + Table.SUGGESTIONS.getName() + " (id, user_id, title, content, created_at, status, detailed_status, last_update, guild_id, type) VALUES ((SELECT count FROM (SELECT MAX(id) AS count FROM " + Table.SUGGESTIONS.getName() + " WHERE guild_id=?) AS cnt)+1, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             stmt.setLong(1, gId);
@@ -1425,9 +1523,9 @@ public class DataManager {
                         rs.getTimestamp("last_update").toInstant(),
                         SQLFeedback.FeedbackType.getByValue(rs.getInt("type"))
                 );
-        }catch (SQLException ex){
+        }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(rs);
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(stmt2);
@@ -1435,6 +1533,7 @@ public class DataManager {
         }
         return suggestion;
     }
+
     public static SQLFeedback getSuggestion(Long gId, int sId){
         Connection con = null;
         PreparedStatement stmt = null;
@@ -1459,15 +1558,16 @@ public class DataManager {
                         rs.getTimestamp("last_update").toInstant(),
                         SQLFeedback.FeedbackType.getByValue(rs.getInt("type"))
                 );
-        }catch (SQLException ex){
+        }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(rs);
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
         return suggestion;
     }
+
     public static List<SQLFeedback> getSuggestions(Long gId, long pageNumber, long itemsPerPage){
         Connection con = null;
         PreparedStatement stmt = null;
@@ -1475,13 +1575,13 @@ public class DataManager {
         List<SQLFeedback> suggestions = new ArrayList<>();
         try{
             con = getConnection();
-            long startId = (pageNumber-1)*itemsPerPage+1;
+            long startId = (pageNumber - 1) * itemsPerPage + 1;
             stmt = con.prepareStatement(
                     "SELECT * FROM " + Table.SUGGESTIONS.getName() + " WHERE guild_id=? AND status<>? AND id>=" +
-                        "(SELECT id FROM" +
+                            "(SELECT id FROM" +
                             "(SELECT id FROM " + Table.SUGGESTIONS.getName() + " WHERE guild_id=? AND status<>? ORDER BY id ASC LIMIT ?)" +
-                        "AS mostInner ORDER BY id DESC LIMIT 1)" +
-                    "ORDER BY id ASC LIMIT ?"
+                            "AS mostInner ORDER BY id DESC LIMIT 1)" +
+                            "ORDER BY id ASC LIMIT ?"
             );
             stmt.setLong(1, gId);
             stmt.setByte(2, SuggestionStatus.DELETED.getStatus());
@@ -1503,15 +1603,16 @@ public class DataManager {
                         rs.getTimestamp("last_update").toInstant(),
                         SQLFeedback.FeedbackType.getByValue(rs.getInt("type"))
                 ));
-        }catch (SQLException ex){
+        }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(rs);
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
         return suggestions;
     }
+
     public static List<SQLFeedback> getFeedback(Long gId, int items, int offset, boolean deleted){
         Connection con = null;
         PreparedStatement stmt = null;
@@ -1528,10 +1629,10 @@ public class DataManager {
                 }else{
                     stmt = con.prepareStatement(
                             "SELECT * FROM " + Table.SUGGESTIONS.getName() + " WHERE guild_id=? AND status<>? AND id>" +
-                                "(SELECT id FROM" +
+                                    "(SELECT id FROM" +
                                     "(SELECT id FROM " + Table.SUGGESTIONS.getName() + " WHERE guild_id=? AND status<>? ORDER BY id ASC LIMIT ?)" +
-                                "AS mostInner ORDER BY id DESC LIMIT 1)" +
-                            "ORDER BY id ASC LIMIT ?"
+                                    "AS mostInner ORDER BY id DESC LIMIT 1)" +
+                                    "ORDER BY id ASC LIMIT ?"
                     );
                     stmt.setLong(1, gId);
                     stmt.setByte(2, SuggestionStatus.DELETED.getStatus());
@@ -1560,15 +1661,16 @@ public class DataManager {
                         rs.getTimestamp("last_update").toInstant(),
                         SQLFeedback.FeedbackType.getByValue(rs.getInt("type"))
                 ));
-        }catch (SQLException ex){
+        }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(rs);
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
         return suggestions;
     }
+
     public static long getSuggestionPageCount(Long gId, long itemsPerPage){
         Connection con = null;
         PreparedStatement stmt = null;
@@ -1582,20 +1684,21 @@ public class DataManager {
             rs = stmt.executeQuery();
             if(rs.next())
                 count = rs.getLong("cnt");
-        }catch (SQLException ex){
+        }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(rs);
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
         return Math.round(Math.ceil((double)count / (double)itemsPerPage));
     }
+
     public static boolean setSuggestion(Long gId, int sId, String key, Object value, JDBCType type){
         Connection con = null;
         PreparedStatement stmt = null;
         boolean success = false;
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("UPDATE " + Table.SUGGESTIONS.getName() + " SET " + key + "=? WHERE id=? AND guild_id=? LIMIT 1");
             stmt.setObject(1, value, type);
@@ -1603,19 +1706,20 @@ public class DataManager {
             stmt.setLong(3, gId);
             stmt.executeUpdate();
             success = true;
-        }catch (SQLException ex){
+        }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
         return success;
     }
+
     public static boolean setSuggestionStatus(Long gId, int sId, byte status, String detailedStatus, Instant editedTimestamp){
         Connection con = null;
         PreparedStatement stmt = null;
         boolean success = false;
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("UPDATE " + Table.SUGGESTIONS.getName() + " SET status=?, detailed_status=?, last_update=? WHERE id=? AND guild_id=? LIMIT 1");
             stmt.setByte(1, status);
@@ -1625,9 +1729,9 @@ public class DataManager {
             stmt.setLong(5, gId);
             stmt.executeUpdate();
             success = true;
-        }catch (SQLException ex){
+        }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
@@ -1639,7 +1743,7 @@ public class DataManager {
         PreparedStatement stmt = null;
         ResultSet rs = null;
         List<Long> uIds = new ArrayList<>();
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("SELECT user_id FROM " + Table.SUGGESTION_NOTIFICATIONS.getName() + " WHERE suggestion_id=? AND guild_id=?");
             stmt.setInt(1, sId);
@@ -1647,15 +1751,16 @@ public class DataManager {
             rs = stmt.executeQuery();
             while(rs.next())
                 uIds.add(rs.getLong("user_id"));
-        }catch (SQLException ex){
+        }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(rs);
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
         return uIds;
     }
+
     public static boolean setSuggestionNotification(Long gId, Long uId, int sId, boolean notify){
         Connection con = null;
         PreparedStatement stmt = null;
@@ -1671,9 +1776,9 @@ public class DataManager {
             stmt.setLong(3, gId);
             stmt.executeUpdate();
             success = true;
-        }catch (SQLException ex){
+        }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
         }
@@ -1692,9 +1797,9 @@ public class DataManager {
             stmt.setString(2, bId);
             rs = stmt.executeQuery();
             exists = rs.next();
-        }catch (SQLException ex){
+        }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(rs);
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
@@ -1707,16 +1812,16 @@ public class DataManager {
         PreparedStatement stmt = null;
         ResultSet rs = null;
         int count = -1;
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("SELECT COUNT(*) AS cnt FROM " + Table.BACKUP_GENERAL.getName() + " WHERE guild_id=?");
             stmt.setLong(1, gId);
             rs = stmt.executeQuery();
             if(rs.next())
                 count = rs.getInt("cnt");
-        }catch (SQLException ex){
+        }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(rs);
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
@@ -1729,7 +1834,7 @@ public class DataManager {
         PreparedStatement stmt = null;
         ResultSet rs = null;
         int count = -1;
-        try {
+        try{
             con = getConnection();
             stmt = con.prepareStatement("SELECT COUNT(*) AS cnt FROM " + Table.BACKUP_GENERAL.getName() + " WHERE guild_id=? AND automated=?");
             stmt.setLong(1, gId);
@@ -1737,9 +1842,9 @@ public class DataManager {
             rs = stmt.executeQuery();
             if(rs.next())
                 count = rs.getInt("cnt");
-        }catch (SQLException ex){
+        }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(rs);
             DbUtils.closeQuietly(stmt);
             DbUtils.closeQuietly(con);
@@ -1751,7 +1856,7 @@ public class DataManager {
         Connection con = null;
         PreparedStatement stmt1 = null, stmt2 = null, stmt3 = null, stmt4 = null, stmt5 = null, stmt6 = null, stmt7 = null;
         boolean success = false;
-        try {
+        try{
             con = getConnection();
             stmt1 = con.prepareStatement("INSERT INTO " + Table.BACKUP_GENERAL.getName() + " (" +
                     "backup_id," +
@@ -1796,7 +1901,7 @@ public class DataManager {
             prep2.deleteCharAt(prep2.length() - 1);
             stmt2 = con.prepareStatement(prep2.toString());
             for(int i = 0; i < vars.size(); i++)
-                stmt2.setObject(i+1, vars.get(i));
+                stmt2.setObject(i + 1, vars.get(i));
             vars.clear();
             StringBuilder prep3 = new StringBuilder("INSERT INTO " + Table.BACKUP_CHANNELS.getName() + " (backup_id, guild_id, channel_id, name, parent_channel, position, slowmode, type, bitrate, user_limit, topic, nsfw) VALUES ");
             g.getChannels()
@@ -1805,21 +1910,30 @@ public class DataManager {
                         vars.add(g.getId().asLong());
                         vars.add(c.getId().asLong());
                         vars.add(c.getName());
-                        if(c instanceof GuildMessageChannel) vars.add(((GuildMessageChannel)c).getCategoryId().orElse(Snowflake.of(0L)).asLong()); else if(c instanceof VoiceChannel) vars.add(((VoiceChannel)c).getCategoryId().orElse(Snowflake.of(0L)).asLong()); else vars.add(0L);
+                        if(c instanceof GuildMessageChannel)
+                            vars.add(((GuildMessageChannel)c).getCategoryId().orElse(Snowflake.of(0L)).asLong());
+                        else if(c instanceof VoiceChannel)
+                            vars.add(((VoiceChannel)c).getCategoryId().orElse(Snowflake.of(0L)).asLong());
+                        else vars.add(0L);
                         vars.add(c.getRawPosition());
-                        if(c instanceof TextChannel) vars.add(((TextChannel)c).getRateLimitPerUser()); else vars.add(0);
+                        if(c instanceof TextChannel) vars.add(((TextChannel)c).getRateLimitPerUser());
+                        else vars.add(0);
                         vars.add(c.getType().getValue());
-                        if(c instanceof VoiceChannel) vars.add(((VoiceChannel)c).getBitrate()); else vars.add(0);
-                        if(c instanceof VoiceChannel) vars.add(((VoiceChannel)c).getUserLimit()); else vars.add(0);
-                        if(c instanceof GuildMessageChannel) vars.add(((GuildMessageChannel)c).getTopic().orElse("")); else vars.add("");
-                        if(c instanceof GuildMessageChannel) vars.add(((GuildMessageChannel)c).isNsfw()); else vars.add(false);
+                        if(c instanceof VoiceChannel) vars.add(((VoiceChannel)c).getBitrate());
+                        else vars.add(0);
+                        if(c instanceof VoiceChannel) vars.add(((VoiceChannel)c).getUserLimit());
+                        else vars.add(0);
+                        if(c instanceof GuildMessageChannel) vars.add(((GuildMessageChannel)c).getTopic().orElse(""));
+                        else vars.add("");
+                        if(c instanceof GuildMessageChannel) vars.add(((GuildMessageChannel)c).isNsfw());
+                        else vars.add(false);
                         prep3.append("(?,?,?,?,?,?,?,?,?,?,?,?),");
                     })
                     .blockLast();
             prep3.deleteCharAt(prep3.length() - 1);
             stmt3 = con.prepareStatement(prep3.toString());
             for(int i = 0; i < vars.size(); i++)
-                stmt3.setObject(i+1, vars.get(i));
+                stmt3.setObject(i + 1, vars.get(i));
             vars.clear();
             AtomicBoolean backupPermissionOverwrites = new AtomicBoolean(false);
             StringBuilder prep4 = new StringBuilder("INSERT INTO " + Table.BACKUP_CHANNEL_PERMISSION_OVERWRITES.getName() + " (backup_id, guild_id, channel_id, holder_id, is_role, allow, deny) VALUES ");
@@ -1839,7 +1953,7 @@ public class DataManager {
             prep4.deleteCharAt(prep4.length() - 1);
             stmt4 = con.prepareStatement(prep4.toString());
             for(int i = 0; i < vars.size(); i++)
-                stmt4.setObject(i+1, vars.get(i));
+                stmt4.setObject(i + 1, vars.get(i));
             vars.clear();
             AtomicBoolean backupUsers = new AtomicBoolean(false);
             StringBuilder prep5 = new StringBuilder("INSERT INTO " + Table.BACKUP_USERS.getName() + " (backup_id, guild_id, user_id, nickname) VALUES ");
@@ -1857,7 +1971,7 @@ public class DataManager {
             prep5.deleteCharAt(prep5.length() - 1);
             stmt5 = con.prepareStatement(prep5.toString());
             for(int i = 0; i < vars.size(); i++)
-                stmt5.setObject(i+1, vars.get(i));
+                stmt5.setObject(i + 1, vars.get(i));
             vars.clear();
             AtomicBoolean backupUserRoles = new AtomicBoolean(false);
             StringBuilder prep6 = new StringBuilder("INSERT INTO " + Table.BACKUP_USER_ROLES.getName() + " (backup_id, guild_id, user_id, role_id) VALUES ");
@@ -1876,7 +1990,7 @@ public class DataManager {
             prep6.deleteCharAt(prep6.length() - 1);
             stmt6 = con.prepareStatement(prep6.toString());
             for(int i = 0; i < vars.size(); i++)
-                stmt6.setObject(i+1, vars.get(i));
+                stmt6.setObject(i + 1, vars.get(i));
             vars.clear();
             AtomicBoolean backupBans = new AtomicBoolean(false);
             StringBuilder prep7 = new StringBuilder("INSERT INTO " + Table.BACKUP_BANS.getName() + " (backup_id, guild_id, user_id, reason) VALUES ");
@@ -1893,7 +2007,7 @@ public class DataManager {
             prep7.deleteCharAt(prep7.length() - 1);
             stmt7 = con.prepareStatement(prep7.toString());
             for(int i = 0; i < vars.size(); i++)
-                stmt7.setObject(i+1, vars.get(i));
+                stmt7.setObject(i + 1, vars.get(i));
             vars.clear();
             stmt1.executeUpdate();
             stmt2.executeUpdate();
@@ -1903,9 +2017,9 @@ public class DataManager {
             if(backupUserRoles.get()) stmt6.executeUpdate();
             if(backupBans.get()) stmt7.executeUpdate();
             success = true;
-        }catch (SQLException ex){
+        }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(stmt1);
             DbUtils.closeQuietly(stmt2);
             DbUtils.closeQuietly(stmt3);
@@ -1962,7 +2076,7 @@ public class DataManager {
                             .setDefaultMessageNotificationsLevel(Guild.NotificationLevel.of(rs1.getInt("default_message_notifications")))
                             .setAfkTimeout(rs1.getInt("afk_timeout"))
                     ;
-                }catch (SQLException ex){
+                }catch(SQLException ex){
                     ex.printStackTrace();
                 }
             }).subscribe();
@@ -1990,7 +2104,7 @@ public class DataManager {
                                         .setMentionable(rs2.getBoolean("mentionable"))
                                         .setPermissions(PermissionSet.of(rs2.getLong("permissions")))
                                 ;
-                            }catch (SQLException ex){
+                            }catch(SQLException ex){
                                 ex.printStackTrace();
                             }
                         }))
@@ -2003,7 +2117,7 @@ public class DataManager {
                                         .setMentionable(rs2.getBoolean("mentionable"))
                                         .setPermissions(PermissionSet.of(rs2.getLong("permissions")))
                                 ;
-                            }catch (SQLException ex){
+                            }catch(SQLException ex){
                                 ex.printStackTrace();
                             }
                         }))
@@ -2034,9 +2148,9 @@ public class DataManager {
                     .flatMap(b -> g.unban(b.getUser().getId(), "Restoring backup " + bId))
                     .subscribe();
             success = true;
-        }catch (SQLException ex){
+        }catch(SQLException ex){
             ex.printStackTrace();
-        }finally {
+        }finally{
             DbUtils.closeQuietly(stmt1);
             DbUtils.closeQuietly(stmt2);
             DbUtils.closeQuietly(stmt3);
@@ -2055,7 +2169,7 @@ public class DataManager {
         boolean success = false;
         try{
             con = getConnection();
-            stmt = con.prepareStatement("UPDATE " + Table.BOT_STATS.getName() + " SET "+stat+"="+stat+"+1");
+            stmt = con.prepareStatement("UPDATE " + Table.BOT_STATS.getName() + " SET " + stat + "=" + stat + "+1");
             stmt.executeUpdate();
             success = true;
         }catch(SQLException ex){
@@ -2073,7 +2187,7 @@ public class DataManager {
         boolean success = false;
         try{
             con = getConnection();
-            stmt = con.prepareStatement("UPDATE " + Table.GUILDS.getName() + " SET "+stat+"="+stat+"+1 WHERE guild_id=?");
+            stmt = con.prepareStatement("UPDATE " + Table.GUILDS.getName() + " SET " + stat + "=" + stat + "+1 WHERE guild_id=?");
             stmt.setLong(1, gId);
             stmt.executeUpdate();
             success = true;
@@ -2112,6 +2226,58 @@ public class DataManager {
             DbUtils.closeQuietly(con);
         }
         return stats == null ? new SQLStats() : stats;
+    }
+
+
+    public static SQLExecutor executeSQL(String sql){
+        return new SQLExecutor(sql, sql.strip().toLowerCase().startsWith("select"));
+    }
+
+    public static class SQLExecutor {
+        @Getter
+        private boolean successful = false;
+        @Getter
+        private int affectedRowCount = 0;
+        @Getter
+        private String sql = "";
+        @Getter
+        private String exception = null;
+        @Getter
+        private SafeResultSet resultSet = null;
+        @Getter
+        private boolean query;
+
+        public SQLExecutor(String sql, boolean isQuery){
+            this.sql = sql;
+            this.query = isQuery;
+            Connection con = null;
+            Statement stmt = null;
+            ResultSet rs = null;
+            try{
+                con = getConnection();
+                stmt = con.createStatement();
+                if(isQuery){
+                    rs = stmt.executeQuery(sql);
+                    resultSet = new SafeResultSet(rs);
+                    successful = true;
+                }else{
+                    affectedRowCount = stmt.executeUpdate(sql);
+                    successful = true;
+                }
+            }catch(SQLException ex){
+                successful = false;
+                exception = "";
+                while(ex != null){
+                    exception += "\n\n" + ex.getMessage();
+                    ex = ex.getNextException();
+                }
+                exception = exception.strip();
+            }finally{
+                DbUtils.closeQuietly(rs);
+                DbUtils.closeQuietly(stmt);
+                DbUtils.closeQuietly(con);
+            }
+        }
     }
 
 }

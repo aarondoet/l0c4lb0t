@@ -1,11 +1,13 @@
 package DataManager;
 
+import lombok.Getter;
+
 public class SQLPermissions {
 
-    private long guildId;
-    private long holderId;
-    private String action;
-    private int type;
+    @Getter private long guildId;
+    @Getter private long holderId;
+    @Getter private String action;
+    @Getter private int type;
 
     public SQLPermissions(long guildId, long holderId, String action, int type) {
         this.guildId = guildId;
@@ -13,10 +15,5 @@ public class SQLPermissions {
         this.action = action;
         this.type = type;
     }
-
-    public long getGuildId() {return guildId;}
-    public long getHolderId() {return holderId;}
-    public String getAction() {return action;}
-    public int getType() {return type;}
 
 }

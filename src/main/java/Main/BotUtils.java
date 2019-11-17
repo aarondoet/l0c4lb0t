@@ -56,13 +56,22 @@ public class BotUtils {
     public static List<Long> getBotAdmins(){return Arrays.asList(226677096091484160L);}
 
     /**
+     *
+     */
+    public static boolean isBotAdmin(long uId, MessageChannel c/*, String lang*/){
+        if(getBotAdmins().contains(uId)) return true;
+        sendNoPermissionsMessage(c/*, lang*/);
+        return false;
+    }
+
+    /**
      * The main color of the bot
      */
     public static final Color botColor = new Color(124, 124, 255);
-
     public static final Color darkRed = new Color(0xFF0000);
-
     public static final Color lighterRed = new Color(0xFF5246);
+    public static final Color lightGreen = new Color(0x4BB543);
+
     /**
      * Discord user of l0c4lh057
      */
@@ -80,6 +89,10 @@ public class BotUtils {
      * X emoji
      */
     public static final ReactionEmoji x = ReactionEmoji.unicode("\u274C");
+    /**
+     * Checkmark emoji
+     */
+    public static final ReactionEmoji checkmark = ReactionEmoji.unicode("\u2705");
 
     /**
      * Gets the prefix of a {@link Guild}
@@ -99,6 +112,9 @@ public class BotUtils {
      * To use quotes inside of a quoted text it has to be escaped ({@code \"} or {@code \'}).
      * Double quotes don't have to be escaped inside of single quotes and single quotes don't have to be escaped inside of double quotes.<br/>
      * Every {@code \} gets removed, to write one it has to be escaped too ({@code \\}). {@code \\"} will not escape the quote but result in the backslash character and a quote behind it.
+     * Spaces can also be escaped outside of quotes to not split on them.<br>
+     * <br>
+     * To quote a text there has to be a space in front of the beginning and behind the ending quote.
      *
      * @param content The content you want to parse
      * @return The content split into arguments
@@ -109,41 +125,48 @@ public class BotUtils {
         boolean inQuotes = false;
         char quoteChar = '-';
         boolean endedQuote = false;
-        String currArg = "";
+        StringBuilder currArg = new StringBuilder();
         for (char c : content.toCharArray()) {
             if (endedQuote) {
                 endedQuote = false;
-                if (c == ' ') continue;
+                if(Character.isWhitespace(c)){
+                    if(c != ' ') args.add(""+c);
+                    quoteChar = '-';
+                    continue;
+                }else{
+                    currArg = new StringBuilder(args.get(args.size()-1)).append(quoteChar);
+                    args.remove(args.size()-1);
+                }
+                quoteChar = '-';
             }
-            if (c == ' ' && !inQuotes) {
-                args.add(currArg);
-                currArg = "";
+            if (Character.isWhitespace(c) && !inQuotes && !escaped) {
+                args.add(currArg.toString());
+                currArg = new StringBuilder();
                 escaped = false;
+                if(c != ' ') args.add(""+c);
                 continue;
             }
-            if (c == quoteChar && c != '-' && inQuotes && !escaped) {
-                args.add(currArg);
-                currArg = "";
+            if (c == quoteChar && c != '-' && !escaped) {
+                args.add(currArg.toString());
+                currArg = new StringBuilder();
                 inQuotes = false;
                 endedQuote = true;
-                quoteChar = '-';
                 continue;
             }
             if (c == '\\' && !escaped) {
                 escaped = true;
                 continue;
             }
-            if ((c == '"' || c == '\'') && !escaped && !inQuotes) {
-                if(currArg.length() > 0) args.add(currArg);
-                currArg = "";
+            if ((c == '"' || c == '\'') && !escaped && !inQuotes && currArg.length() == 0) {
+                currArg = new StringBuilder();
                 inQuotes = true;
                 quoteChar = c;
                 continue;
             }
             escaped = false;
-            currArg += "" + c;
+            currArg.append(c);
         }
-        if (!endedQuote) args.add(currArg);
+        if (!endedQuote && currArg.length() > 0) args.add((inQuotes ? quoteChar : "") + currArg.toString());
         return args;
     }
 
@@ -273,7 +296,7 @@ public class BotUtils {
         }else if(Pattern.matches("^\\d+$", color)){
             try {
                 return new Color(Integer.parseInt(color));
-            }catch (Exception ex){}
+            }catch (Exception ignored){}
         }
         try {
             return (Color)Color.class.getField(color.toLowerCase()).get(null);
@@ -312,7 +335,7 @@ public class BotUtils {
                             if (message.get("fields").isArray()) {
                                 message.get("fields").elements().forEachRemaining(field -> {
                                     if (field.has("name") && field.has("value"))
-                                        ecs.addField(field.get("name").asText(), field.get("value").asText(), field.has("inline") ? field.get("inline").asBoolean() : false);
+                                        ecs.addField(field.get("name").asText(), field.get("value").asText(), field.has("inline") && field.get("inline").asBoolean());
                                 });
                             }
                         }
@@ -354,7 +377,7 @@ public class BotUtils {
                             if (message.get("fields").isArray()) {
                                 message.get("fields").elements().forEachRemaining(field -> {
                                     if (field.has("name") && field.has("value"))
-                                        ecs.addField(field.get("name").asText(), field.get("value").asText(), field.has("inline") ? field.get("inline").asBoolean() : false);
+                                        ecs.addField(field.get("name").asText(), field.get("value").asText(), field.has("inline") && field.get("inline").asBoolean());
                                 });
                             }
                         }
@@ -497,8 +520,8 @@ public class BotUtils {
      * @param channel The {@link MessageChannel} the {@link Message} should get sent in
      * @return A {@link Mono} with the value true
      */
-    public static boolean sendNoPermissionsMessage(MessageChannel channel){
-        channel.createMessage("You don't have the permissions to perform this action.").subscribe();
+    public static boolean sendNoPermissionsMessage(MessageChannel channel/*, String lang*/){
+        channel.createEmbed(LocaleManager.getLanguageMessage("en", "noPermissions")).subscribe();
         return true;
     }
 
@@ -512,17 +535,18 @@ public class BotUtils {
         long d = 0L;
         Matcher m = Pattern.compile("^(?:(?:(\\d+):)?(?:(\\d+):))?(\\d+)(?:\\.(\\d+))?$").matcher(duration);
         if(m.matches()){
-            if(m.group(1) != null) d += Long.parseLong(m.group(1)) * 3600000;
-            if(m.group(2) != null) d += Long.parseLong(m.group(2)) * 60000;
-            if(m.group(3) != null) d += Long.parseLong(m.group(3)) * 1000;
+            if(m.group(1) != null) d += Long.parseLong(m.group(1)) * 3_600_000;
+            if(m.group(2) != null) d += Long.parseLong(m.group(2)) * 60_000;
+            if(m.group(3) != null) d += Long.parseLong(m.group(3)) * 1_000;
             if(m.group(4) != null) d += Long.parseLong(m.group(4));
         }else{
-            m = Pattern.compile("(?: *(\\d+) *h| *(\\d+) *m(?:in)?| *(\\d+) *s| *(\\d+) *ms)+").matcher(duration);
+            m = Pattern.compile("(?: *(\\d+) *d| *(\\d+) *h| *(\\d+) *m(?:in)?| *(\\d+) *s| *(\\d+) *ms)+").matcher(duration);
             if(m.matches()){
-                if(m.group(1) != null) d += Long.parseLong(m.group(1)) * 3600000;
-                if(m.group(2) != null) d += Long.parseLong(m.group(2)) * 60000;
-                if(m.group(3) != null) d += Long.parseLong(m.group(3)) * 1000;
-                if(m.group(4) != null) d += Long.parseLong(m.group(4));
+                if(m.group(1) != null) d += Long.parseLong(m.group(1)) * 86_400_000;
+                if(m.group(2) != null) d += Long.parseLong(m.group(2)) * 3_600_000;
+                if(m.group(3) != null) d += Long.parseLong(m.group(3)) * 60_000;
+                if(m.group(4) != null) d += Long.parseLong(m.group(4)) * 1_000;
+                if(m.group(5) != null) d += Long.parseLong(m.group(5));
             }else{
                 d = -1L;
             }
@@ -725,7 +749,7 @@ public class BotUtils {
         return false;
     }
 
-    public static boolean checkMemberForNSFWPerms(Guild g, Member m, GuildMessageChannel c){
+    /*public static boolean checkMemberForNSFWPerms(Guild g, Member m, GuildMessageChannel c){
         if(PermissionManager.hasPermission(g, m, "nsfw", true))
             return true;
         sendNoPermissionsMessage(c);
@@ -737,7 +761,7 @@ public class BotUtils {
             return true;
         sendNoPermissionsMessage(c);
         return false;
-    }
+    }*/
 
     /**
      * Checks if the bot has certain {@link Permission}s in the {@link Guild}. If it has all of the permissions {@code true} is returned, otherwise a message telling which permissions are missing is sent and {@code false} is returned.

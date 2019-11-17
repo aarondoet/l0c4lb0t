@@ -4,17 +4,18 @@ import java.time.Instant;
 import java.util.Optional;
 
 import DataManager.DataManager.*;
+import lombok.Getter;
 
 public class SQLBotSuggestion {
 
-    private String title = "";
-    private String content = "";
-    private SuggestionStatus status = SuggestionStatus.CREATED;
+    @Getter private String title = "";
+    @Getter private String content = "";
+    @Getter private SuggestionStatus status = SuggestionStatus.CREATED;
     private String detailedStatus = "";
-    private int id = 0;
-    private long creatorId = 0L;
-    private Instant createdAt = Instant.MIN;
-    private Instant lastUpdate = Instant.MIN;
+    @Getter private int id = 0;
+    @Getter private long creatorId = 0L;
+    @Getter private Instant createdAt = Instant.MIN;
+    @Getter private Instant lastUpdate = Instant.MIN;
 
     public SQLBotSuggestion(String title, String content, byte status, String detailedStatus, int id, long creatorId, Instant createdAt, Instant lastUpdate) {
         this.title = title;
@@ -27,13 +28,6 @@ public class SQLBotSuggestion {
         this.lastUpdate = lastUpdate;
     }
 
-    public String getTitle() {return title;}
-    public String getContent() {return content;}
-    public SuggestionStatus getStatus() {return status;}
     public Optional<String> getDetailedStatus() {return Optional.ofNullable(detailedStatus);}
-    public int getId() {return id;}
-    public long getCreatorId() {return creatorId;}
-    public Instant getCreatedAt() {return createdAt;}
-    public Instant getLastUpdate() {return lastUpdate;}
 
 }

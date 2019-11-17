@@ -135,7 +135,7 @@ public class HTTPServer {
                                     .put("region", g.getRegionId())
 
                                     .put("bot_prefix", guild.getBotPrefix())
-                                    .put("delete_invites", guild.getDeleteInvites())
+                                    .put("delete_invites", guild.isDeleteInvites())
                                     .put("invite_warning", guild.getInviteWarning())
                                     .put("unknown_command_message", guild.getUnknownCommandMessage())
                                     .put("language", guild.getLanguage())

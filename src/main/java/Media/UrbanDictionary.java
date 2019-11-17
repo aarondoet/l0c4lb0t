@@ -1,5 +1,6 @@
 package Media;
 
+import Main.WeightedRandomBag;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.jsoup.Connection;
@@ -10,6 +11,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
 import java.util.regex.Matcher;
@@ -21,7 +23,7 @@ public class UrbanDictionary {
     private String url = "";
     public UrbanDictionary(String term){
         term = URLEncoder.encode(term, StandardCharsets.UTF_8);
-        this.url = "https://urbandictionary.com/define.php?term=" + term;
+        url = "https://urbandictionary.com/define.php?term=" + term;
         Connection con = Jsoup.connect("https://api.urbandictionary.com/v0/define?term=" + term).ignoreContentType(true);
         try{
             Document doc = con.get();
@@ -34,15 +36,25 @@ public class UrbanDictionary {
         }
     }
 
+    public String getUrl(){
+        return url;
+    }
+
     public UrbanDefinition getRandomDefinition(){
         if(definitions.isEmpty()) return null;
         return definitions.get(new Random().nextInt(definitions.size()));
+    }
+    public UrbanDefinition getVoteBasedDefinition(){
+        WeightedRandomBag<UrbanDefinition> bag = new WeightedRandomBag<>();
+        for(UrbanDefinition definition : definitions)
+            bag.addEntry(definition, (double)definition.thumbsUp / (double)(definition.thumbsDown == 0 ? 0.8 : definition.thumbsDown));
+        return bag.getRandom();
     }
     public List<UrbanDefinition> getDefinitions(){
         return definitions;
     }
 
-    public class UrbanDefinition {
+    public static class UrbanDefinition {
         private List<String> soundUrls = new ArrayList<>();
         private String url;
         private int thumbsUp;

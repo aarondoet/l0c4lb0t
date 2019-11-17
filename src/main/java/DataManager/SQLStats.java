@@ -1,8 +1,16 @@
 package DataManager;
 
+import lombok.Getter;
+
 public class SQLStats{
 
-    private int sentMessageCount = 0, receivedMessageCount = 0, receivedCommandCount = 0, receivedUnknownCommandCount = 0, receivedCustomCommandCount = 0, receivedDMCount = 0, sentDMCount = 0;
+    @Getter private int sentMessageCount = 0;
+    @Getter private int receivedMessageCount = 0;
+    @Getter private int receivedCommandCount = 0;
+    @Getter private int receivedUnknownCommandCount = 0;
+    @Getter private int receivedCustomCommandCount = 0;
+    @Getter private int receivedDMCount = 0;
+    @Getter private int sentDMCount = 0;
 
     public SQLStats(){}
     public SQLStats(int sentMessageCount, int receivedMessageCount, int receivedCommandCount, int receivedUnknownCommandCount, int receivedCustomCommandCount, int receivedDMCount, int sentDMCount){
@@ -14,13 +22,5 @@ public class SQLStats{
         this.receivedDMCount = receivedDMCount;
         this.sentDMCount = sentDMCount;
     }
-
-    public int getSentMessageCount(){return sentMessageCount;}
-    public int getReceivedMessageCount(){return receivedMessageCount;}
-    public int getReceivedCommandCount(){return receivedCommandCount;}
-    public int getReceivedUnknownCommandCount(){return receivedUnknownCommandCount;}
-    public int getReceivedCustomCommandCount(){return receivedCustomCommandCount;}
-    public int getReceivedDMCount(){return receivedDMCount;}
-    public int getSentDMCount(){return sentDMCount;}
 
 }

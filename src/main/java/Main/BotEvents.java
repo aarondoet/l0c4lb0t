@@ -14,10 +14,7 @@ import discord4j.core.event.domain.guild.GuildUpdateEvent;
 import discord4j.core.event.domain.lifecycle.ReadyEvent;
 import discord4j.core.event.domain.message.MessageCreateEvent;
 import discord4j.core.event.domain.message.ReactionAddEvent;
-import discord4j.core.object.entity.Channel;
-import discord4j.core.object.entity.GuildMessageChannel;
-import discord4j.core.object.entity.Member;
-import discord4j.core.object.entity.User;
+import discord4j.core.object.entity.*;
 import discord4j.core.object.trait.Categorizable;
 import discord4j.core.object.util.Snowflake;
 import reactor.core.publisher.Flux;
@@ -44,9 +41,13 @@ public class BotEvents {
                 .doOnNext(e -> BotUtils.l0c4lh057 = e.getClient().getUserById(Snowflake.of(226677096091484160L)).block())
                 .doOnNext(e -> System.out.println("Logged in as " + e.getSelf().getUsername() + "#" + e.getSelf().getDiscriminator()))
                 .subscribe();
-        // initialize nonexistent guilds and update existing ones
+        // initialize nonexistent guilds/users/members and update existing ones
         client.getEventDispatcher().on(GuildCreateEvent.class)
-                .doOnNext(e -> DataManager.initializeGuild(e.getGuild()))
+                .map(GuildCreateEvent::getGuild)
+                .doOnNext(DataManager::initializeGuild)
+                .flatMap(Guild::getMembers)
+                .doOnNext(DataManager::initializeMember)
+                .doOnNext(DataManager::initializeUser)
                 .subscribe();
         client.getEventDispatcher().on(GuildUpdateEvent.class)
                 .doOnNext(e -> DataManager.initializeGuild(e.getCurrent()))
@@ -69,15 +70,12 @@ public class BotEvents {
                 .filter(e -> !e.getMessage().getAuthor().get().isBot()) // no bots
                 .filterWhen(e -> {
                     List<Long> blocked = DataManager.getBlockedChannels(e.getGuildId().get().asLong());
-                    //return !(blocked.contains(e.getMessage().getChannelId().asLong()) || blocked.contains(e.getMessage().getChannel().ofType(Categorizable.class).block().getCategoryId().orElse(Snowflake.of(0)).asLong()));
                     return e.getMessage().getChannel().ofType(Categorizable.class).map(c -> c.getCategoryId().orElse(Snowflake.of(0))).map(categoryId -> !blocked.contains(categoryId.asLong()) || !blocked.contains(e.getMessage().getChannelId().asLong()));
                 })
                 .flatMap(e -> Mono.justOrEmpty(e.getMessage().getContent())
                         .flatMap(content -> Mono.just(BotUtils.getPrefix(e.getGuildId().get().asLong()))
                                 // commands
                                 .flatMap(pref -> Flux.fromIterable(BotCommands.commands.entrySet())
-                                        .filter(cmd -> cmd.getValue().isUsableInGuilds())
-                                        .filterWhen(cmd -> e.getGuild().map(g -> g.getOwnerId().asLong() == e.getMember().get().getId().asLong() || !cmd.getValue().requiresOwner()))
                                         //.filter(cmd -> BotUtils.isCommand(content, cmd.getKey(), pref)) // removed, bc it is part of truncateMessage now (returns empty when it is not the command)
                                         .flatMap(cmd -> Mono.justOrEmpty(BotUtils.truncateMessage(content, cmd.getKey(), pref))
                                                 // command found
@@ -85,15 +83,19 @@ public class BotEvents {
                                                     DataManager.updateStats("received_command_count");
                                                     DataManager.updateGuildStats(e.getGuildId().get().asLong(), "received_command_count");
                                                 })
+                                                .filter(truncated -> cmd.getValue().isUsableInGuilds())
+                                                .filterWhen(truncated -> e.getGuild().map(g -> g.getOwnerId().asLong() == e.getMember().get().getId().asLong() || !cmd.getValue().requiresOwner()))
                                                 .flatMap(truncated -> e.getMessage().getChannel().ofType(GuildMessageChannel.class)
-                                                        .filter(channel -> !cmd.getValue().isNsfwOnly() || BotUtils.checkChannelForNSFW(channel))
-                                                        .flatMap(channel -> Mono.justOrEmpty(BotUtils.messageToArgs(truncated))
-                                                                .flatMap(args -> Mono.just(LocaleManager.getGuildLanguage(e.getGuildId().get().asLong()))
-                                                                        .flatMap(lang -> e.getGuild()
+                                                        .flatMap(channel -> Mono.just(LocaleManager.getGuildLanguage(e.getGuildId().get().asLong()))
+                                                                .filter(lang -> !cmd.getValue().requiresBotOwner() || BotUtils.isBotAdmin(e.getMessage().getAuthor().map(User::getId).map(Snowflake::asLong).orElseThrow(), channel/*, lang*/))
+                                                                .filter(lang -> !RatelimitUtils.isGuildRatelimited(e.getGuildId().get().asLong(), cmd.getValue().getRatelimit(), channel, LocaleManager.getGuildLanguage(e.getGuildId().get().asLong())))
+                                                                .filter(lang -> !cmd.getValue().isNsfwOnly() || BotUtils.checkChannelForNSFW(channel))
+                                                                .flatMap(lang -> Mono.justOrEmpty(BotUtils.messageToArgs(truncated))
+                                                                        .flatMap(args -> e.getGuild()
                                                                                 .flatMap(guild -> {
                                                                                     if(!PermissionManager.hasPermission(guild, e.getMember().get(), channel, cmd.getValue().getBotPermission(), cmd.getValue().usableByEveryone(), cmd.getValue().getDefaultPerms()))
-                                                                                        return Mono.just(BotUtils.sendNoPermissionsMessage(channel));
-                                                                                    return cmd.getValue().getExecutable().execute(e, pref, args, lang).doOnError(Throwable::printStackTrace).onErrorReturn(false)
+                                                                                        return Mono.just(BotUtils.sendNoPermissionsMessage(channel/*, lang*/));
+                                                                                    return cmd.getValue().getExecutable().execute(e, pref, args, lang).doOnError(Throwable::printStackTrace).onErrorReturn(false).defaultIfEmpty(false)
                                                                                             // SCRIPT EXECUTION START
                                                                                             .doOnNext(success -> ScriptExecutor.onCommandEvent(e, cmd.getKey(), args, success))
                                                                                             // SCRIPT EXECUTION END
@@ -304,7 +306,7 @@ public class BotEvents {
                             String warning = "";
                             SQLGuild sg = DataManager.getGuild(e.getGuildId().get().asLong());
                             if(sg != null){
-                                delete = sg.getDeleteInvites();
+                                delete = sg.isDeleteInvites();
                                 warning = sg.getInviteWarning();
                             }
                             if(!delete && warning.length() == 0) return Mono.empty();
@@ -341,11 +343,13 @@ public class BotEvents {
                         .filter(cmd -> cmd.getValue().isUsableInDM())
                         .flatMap(cmd -> Mono.justOrEmpty(BotUtils.truncateMessage(e.getMessage().getContent().get(), cmd.getKey(), "="))
                                 .flatMap(truncated -> e.getMessage().getChannel()
-                                        .flatMap(channel -> Mono.just(BotUtils.messageToArgs(truncated))
-                                                .flatMap(args -> Mono.just("en")
-                                                // TODO: add users to database, then use their selected language here
-                                                //.flatMap(args -> Mono.just(DataManager.getUser(e.getMessage().getAuthor().get().getId().asLong()).getLanguage())
-                                                        .flatMap(lang -> cmd.getValue().getExecutable().execute(e, "=", args, lang).doOnError(Throwable::printStackTrace).onErrorReturn(false)
+                                        .flatMap(channel -> Mono.just("en")
+                                        // TODO: add users to database, then use their selected language here
+                                        //.flatMap(channel -> Mono.just(DataManager.getUser(e.getMessage().getAuthor().get().getId().asLong()).getLanguage())
+                                                .flatMap(lang -> Mono.just(BotUtils.messageToArgs(truncated))
+                                                        .filter(args -> !cmd.getValue().requiresBotOwner() || BotUtils.isBotAdmin(e.getMessage().getAuthor().map(User::getId).map(Snowflake::asLong).orElseThrow(), channel/*, lang*/))
+                                                        .filter(args -> !RatelimitUtils.isUserRatelimited(e.getGuildId().get().asLong(), cmd.getValue().getRatelimit(), channel, LocaleManager.getGuildLanguage(e.getGuildId().get().asLong())))
+                                                        .flatMap(args -> cmd.getValue().getExecutable().execute(e, "=", args, lang).doOnError(Throwable::printStackTrace).onErrorReturn(false).defaultIfEmpty(false)
                                                                 .filter(success -> !success)
                                                                 .flatMap(success -> {
                                                                     BotUtils.sendHelpMessage(channel, cmd.getKey()[0], "=", lang);
@@ -358,18 +362,6 @@ public class BotEvents {
                                 )
                         )
                 )
-                /*.flatMap(e -> e.getMessage().getChannel()
-                        .flatMap(c -> c.createEmbed(ecs -> ecs
-                                .setTitle("Sorry, but private commands are not available yet.")
-                                .setDescription(
-                                        "You can support me on [Patreon](https://patreon.com/l0c4lh057/) and fund this bot. Currently I am working on this bot in my free time, but since I am a student I have school stuff to do and can't work on this bot all day long. Money wouldn't change this, but I would definitely have more motivation to work on this.\n\n" +
-                                        "You can also support the development of this bot on [GitHub](https://github.com/l0c4lh057/l0c4lb0t/). If I don't have the time to work on something, maybe you have. I will credit you in the `about` command and I'll appreciate your effort."
-                                )
-                                .setColor(BotUtils.botColor)
-                                .setAuthor(BotUtils.l0c4lh057.getUsername(), null, BotUtils.l0c4lh057.getAvatarUrl())
-                                .setFooter("- The bot developer", null)
-                        ))
-                )*/
                 .subscribe();
     }
 

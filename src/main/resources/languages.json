@@ -1,6 +1,7 @@
 {
     "en": {
         "languageName": "English",
+        "englishLanguageName": "English",
         "help": {
             "title": "Help",
             "footer": "Page {0}/{1}",
@@ -9,7 +10,7 @@
             "pages": {
                 "General": {
                     "help": "`{0}help [page|command]` - send the help message",
-                    "about": "`{0}about` - send some information about this bot (alias: `l0c4lb0t`)",
+                    "about": "`{0}about` - send some information about this bot",
                     "stats": "`{0}stats` - send some stats about this bot"
                 },
                 "Moderation": {
@@ -30,7 +31,7 @@
                 },
                 "Fun": {
                     "minesweeper": "`{0}minesweeper <width> <height> <bombCount>` - send a game of minesweeper",
-                    "randomnumber": "`{0}randomnumber <from> <to>` - get a random number from the given interval including both values (alias: `rn`)",
+                    "randomnumber": "`{0}randomnumber <from> <to>` - get a random number from the given interval including both values",
                     "remind": "`{0}remind <duration> <reason>` - set a reminder",
                     "cat": "`{0}cat` - send a random picture of a cat",
                     "dog": "`{0}dog` - send a random picture of a dog"
@@ -43,7 +44,7 @@
                     "search": "`{0}search <song>` - list the first search results to select which one you want to hear",
                     "queue": "`{0}queue` - list the queue",
                     "remove": "`{0}remove (all|<index>)` - remove the song from the queue or clear it",
-                    "np": "`{0}np` - show information about the song that is currently playing (alias: `nowplaying`)",
+                    "np": "`{0}np` - show information about the song that is currently playing",
                     "volume": "`{0}volume (get|set <volume>)` - get or set the volume",
                     "pause": "`{0}pause` - pause the song",
                     "resume": "`{0}resume` - resume the song",
@@ -60,12 +61,12 @@
                     "pussy": ""
                 },
                 "Bot Staff Only": {
-                    "getid": "`{0}getid`",
-                    "delpm": "",
-                    "pcban": "",
+                    "--getid": "`{0}getid`",
+                    "--delpm": "",
+                    "--pcban": "",
                     "botban": "",
                     "guildban": "",
-                    "disablepc": "",
+                    "--disablepc": "",
                     "bcall": ""
                 },
                 "uncategorized": {
@@ -124,6 +125,20 @@
             "banmessage": {},
             "blockchannel": {},
             "botsuggestions": {},
+            "calc": {
+                "help": "`{0}calc <expression>` - calculate the result of the expression\n\n[mXparser](https://mathparser.org/) is used to calculate expressions. You can use all [expressions and functions that library is capable of](https://mathparser.org/mxparser-math-collection/).",
+                "result": {
+                    "title": "Calculated",
+                    "content": "**Expression:** {0}\n**Result:** {1}",
+                    "footer": "Solved in {2} ms",
+                    "color": "SUCCESS"
+                },
+                "error": {
+                    "title": "Error",
+                    "content": "Could not calculate your expression.\n**Error message:**\n{0}",
+                    "color": "ERROR"
+                }
+            },
             "cat": {
                 "help": [
                     "`{0}cat` - send a random picture of a cat"
@@ -138,7 +153,25 @@
                     "content": "{0}"
                 }
             },
+            "coinflip": {
+                "help": "`{0}coinflip` - flip a coin",
+                "heads": {
+                    "title": "Coin flipped",
+                    "content": "The coin landed on heads."
+                },
+                "tails": {
+                    "title": "Coin flipped",
+                    "content": "The coin landed on tails."
+                }
+            },
             "command": {},
+            "dice": {
+                "help": "`{0}dice` - roll a dice",
+                "result": {
+                    "title": "Die rolled",
+                    "content": "The die is showing a {0}."
+                }
+            },
             "dog": {
                 "help": [
                     "`{0}dog` - send a random picture of a dog"
@@ -169,7 +202,26 @@
                     "`{0}kick <user> <reason>` - kick a user with a reason"
                 ]
             },
-            "language": {},
+            "language": {
+                "help": [
+                    "`{0}language get` - show the language currently used and all available languages",
+                    "`{0}language set <language>` - change the language"
+                ],
+                "get": {
+                    "title": "Language",
+                    "content": "Your current language is English.\nAvailable languages: {0}"
+                },
+                "set": {
+                    "title": "Language set",
+                    "content": "You successfully changed the language to {0}.",
+                    "color": "SUCCESS"
+                },
+                "notFound": {
+                    "title": "Language not found",
+                    "content": "The language `{0}` could not be found. Please use `{1}language get` to show all available languages",
+                    "color": "ERROR"
+                }
+            },
             "leavemessage": {},
             "minesweeper": {
                 "help": [
@@ -194,11 +246,44 @@
                 "help": [
                     "`{0}remind <duration> <reason>` - remind you of something important",
                     "",
-                    "A valid duration can be `42` which will be interpreted as minutes but also something like `5h2min52s` (the order is not important)."
-                ]
+                    "A valid duration can be `42` which will be interpreted as minutes but also something like `5h2min52s` (the order is not important).",
+                    "For important reminders it is recommended to not use the bot. Reminders are not stored, thus when the bot restarts all reminders are cancelled."
+                ],
+                "set": {
+                    "title": "Reminder set",
+                    "content": "Your will get reminded in {0} for the following reason:\n```{1}```",
+                    "color": "SUCCESS"
+                },
+                "remind": {
+                    "title": "Reminder",
+                    "content": "{0}"
+                },
+                "invalidDuration": {
+                    "title": "Invalid duration",
+                    "content": "The duration has to be between one minute and two days. Your selected duration {0} does not follow this rule.",
+                    "color": "ERROR"
+                }
             },
             "report": {},
             "resetnicks": {},
+            "sql": {
+                "help": "",
+                "success": {
+                    "title": "Success",
+                    "content": "The statement affected {0} rows.",
+                    "color": "SUCCESS"
+                },
+                "result": {
+                    "title": "Result",
+                    "content": "```json\n{0}```",
+                    "color": "SUCCESS"
+                },
+                "error": {
+                    "title": "Could not execute statement",
+                    "content": "{0}",
+                    "color": "ERROR"
+                }
+            },
             "stats": {
                 "help": "",
                 "title": "Bot Stats",
@@ -290,7 +375,40 @@
                 }
             },
             "unknowncommandmessage": {},
-            "userlimit": {}
+            "urbandictionary": {
+                "help": "`{0}urbandictionary <word>` - find an urban definition for the word",
+                "definition": {
+                    "title": "Definition of \"{0}\"",
+                    "content": "{1}",
+                    "author": "{2}",
+                    "authorUrl": "{3}",
+                    "footer": "{4} thumbs up, {5} thumbs down",
+                    "fields": [
+                        {
+                            "title": "Example",
+                            "content": "{6}"
+                        }
+                    ]
+                },
+                "noDefinitionFound": {
+                    "title": "No definition found",
+                    "content": "Sorry, but I could not find a definition for `{0}`",
+                    "color": "ERROR"
+                }
+            },
+            "userlimit": {},
+            "wikipedia": {
+                "help": "`{0}wikipedia <articleName>` - get an insight into the wikipedia article",
+                "extract": {
+                    "title": "Wikipedia article for \"{0}\"",
+                    "content": "{1}"
+                },
+                "noArticleFound": {
+                    "title": "No article found",
+                    "content": "Sorry, but I could not find an article with the title `{0}`",
+                    "color": "ERROR"
+                }
+            }
         },
         "nsfwChannelRequired": {
             "title": "NSFW channel required",
@@ -299,6 +417,11 @@
         "ratelimited": {
             "title": "Rate limit exceeded",
             "content": "You are rate limited. You are only allowed to perform this action {0} times in {1} milliseconds. Please wait and try again later."
+        },
+        "noPermissions": {
+            "title": "Permissions missing",
+            "content": "You don't have the permissions to perform this action.",
+            "color": "ERROR"
         }
     }
 }

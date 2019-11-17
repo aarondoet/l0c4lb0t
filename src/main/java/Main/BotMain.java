@@ -19,7 +19,7 @@ public class BotMain {
         DynamicVoiceChannels.initialize(client);
         BotUtils.startAutoBackups(client);
         BotUtils.startRichPresences(client);
-        HTTPServer.startServer();
+        //HTTPServer.startServer();
         client.login().block();
     }
 

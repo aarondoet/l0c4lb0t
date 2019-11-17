@@ -27,7 +27,7 @@ public class MusicManager {
         provider = new LavaPlayerAudioProvider(player);
     }
 
-    public static Mono<Void> setGuildConnection(Long gId, VoiceConnection con){guildConnections.put(gId, con); return Mono.empty();}
+    public static void setGuildConnection(Long gId, VoiceConnection con){guildConnections.put(gId, con);}
     public static VoiceConnection getGuildConnection(Long gId){return guildConnections.get(gId);}
 
     public static AudioPlayerManager getPlayerManager(){return playerManager;}
