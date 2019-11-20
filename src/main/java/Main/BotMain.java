@@ -1,5 +1,6 @@
 package Main;
 
+import CommandHandling.BotCommands;
 import DataManager.DataManager;
 import Music.MusicManager;
 import WebAPI.HTTPServer;
@@ -14,6 +15,7 @@ public class BotMain {
         LocaleManager.initialize();
         DataManager.initialize();
         MusicManager.initialize();
+        BotCommands.registerCommands();
         BotEvents.registerEvents(client);
         BotEvents.registerScriptEvents(client);
         DynamicVoiceChannels.initialize(client);

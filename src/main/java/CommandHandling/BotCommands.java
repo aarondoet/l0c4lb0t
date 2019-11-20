@@ -51,23 +51,24 @@ public class BotCommands {
      */
     public static List<Long> autoBackupGuilds = new ArrayList<>();
 
-    /**
-     * The list of all {@link Command}s. The key is an array of all valid command names, the first one is the main name. The value is the {@link Command}
-     */
-    public static final Map<String[], Command> commands = new HashMap<>();
-    static {
-        commands.put(new String[]{"ping"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+    public static void registerCommands(){
+        new Command("ping", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .flatMap(c -> c.createMessage("pong"))
                 .thenReturn(true)
-                , "ping", true
-        ).withRatelimit(new RatelimitUtils.Ratelimit(5, 20000)));
-        commands.put(new String[]{"test2"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+                )
+                .withRatelimit(new RatelimitUtils.Ratelimit(5, 20000))
+                .withPermissions("ping")
+                .usableByEveryone(true)
+                .register();
+        new Command("test2", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .filter(c -> !RatelimitUtils.isMemberRateLimited(e.getGuildId().map(Snowflake::asLong).orElseThrow(), e.getMessage().getAuthor().map(User::getId).map(Snowflake::asLong).orElseThrow(), RatelimitUtils.RatelimitChannel.TEST, 5, 10_000, c, lang))
                 .flatMap(c -> c.createMessage("Args: " + args.toString()))
                 .thenReturn(true)
-                , "test2", true
-        ));
-        commands.put(new String[]{"prefix", "pref"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+                )
+                .withPermissions("test2")
+                .usableByEveryone(true)
+                .register();
+        new Command("prefix", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .map(c -> {
                     if(args.size() < 2){
                         return false;
@@ -84,14 +85,14 @@ public class BotCommands {
                         return true;
                     }
                     return false;
-                }),
-                false, false,"prefix", false, Permission.ADMINISTRATOR
-        ));
-        commands.put(new String[]{"language", "lang"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+                }))
+                .withAliases("pref")
+                .withPermissions("prefix", Permission.ADMINISTRATOR)
+                .usableInDM(true)
+                .register();
+        new Command("language", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .filter(c -> args.size() == 1 || args.size() == 2)
                 .map(c -> {
-                    /*if(!PermissionManager.hasPermission(e.getGuild().block(), e.getMember().get(), "language", false, Permission.ADMINISTRATOR))
-                        return BotUtils.sendNoPermissionsMessage(c);*/
                     if(args.size() == 1 && args.get(0).equalsIgnoreCase("get")){
                         c.createEmbed(LocaleManager.getLanguageMessage(lang, "commands.language.get", LocaleManager.getAvailableLanguages().values().stream().map(s -> s[0]).collect(Collectors.joining(", ")))).subscribe();
                         return true;
@@ -116,24 +117,29 @@ public class BotCommands {
                         return true;
                     }
                     return false;
-                }),
-                false, true, "language", false, Permission.ADMINISTRATOR
-        ));
-        commands.put(new String[]{"choose", "c"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+                }))
+                .withAliases("lang")
+                .withPermissions("language", Permission.ADMINISTRATOR)
+                .usableInDM(true)
+                .register();
+        new Command("choose", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .filter(c -> args.size() > 1)
                 .map(c -> {
-                    /*if(!PermissionManager.hasPermission(e.getGuild().block(), e.getMember().get(), "choose", true))
-                        BotUtils.sendNoPermissionsMessage(c);*/
                     Random rn = new Random();
                     c.createEmbed(LocaleManager.getLanguageMessage(lang, "commands.choose.chosen", args.get(rn.nextInt(args.size())))).subscribe();
                     return true;
-                }),
-                false, true, "choose", true
-        ));
-        commands.put(new String[]{"userlimit"}, new Command((e, prefix, args, lang) -> Mono.just(true), "userlimit", true));
-        commands.put(new String[]{"token"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+                }))
+                .withAliases("c")
+                .withPermissions("choose")
+                .usableByEveryone(true)
+                .usableInDM(true)
+                .register();
+        new Command("userlimit")
+                .withPermissions("userlimit")
+                .usableByEveryone(true)
+                .register();
+        new Command("token", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .map(c -> {
-                    /*if(e.getMember().map(Member::getId()).map(Snowflake::asLong).orElseThrow() != e.getGuild().block().getOwnerId().asLong()) return BotUtils.sendNoPermissionsMessage(c);*/
                     if(args.size() != 1 && args.size() != 2)
                         return false;
                     if(args.get(0).equalsIgnoreCase("get") && args.size() == 1){
@@ -171,10 +177,10 @@ public class BotCommands {
                         return true;
                     }
                     return false;
-                }),
-                true
-        ));
-        /*commands.put(new String[]{"weather"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+                }))
+                .requiresBotOwner(true)
+                .register();
+        /*new Command("weather", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .map(c -> {
                     if(args.isEmpty())
                         return false;
@@ -199,10 +205,8 @@ public class BotCommands {
                     return true;
                 })
         ));*/
-        commands.put(new String[]{"dynamicvoicechannel", "dvc"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+        new Command("dynamicvoicechannel", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .map(c -> {
-                    /*if(!PermissionManager.hasPermission(e.getGuild().block(), e.getMember().get(), "dynamicvoicechannel", false, Permission.MANAGE_CHANNELS))
-                        return BotUtils.sendNoPermissionsMessage(c);*/
                     if(args.size() == 1){
                         if(args.get(0).equalsIgnoreCase("list")){
                             c.createMessage("" + DataManager.getDVCs(e.getGuildId().map(Snowflake::asLong).orElseThrow())).subscribe();
@@ -230,13 +234,12 @@ public class BotCommands {
                         }
                     }
                     return false;
-                }),
-                "manageDVCs", false, Permission.MANAGE_CHANNELS
-        ));
-        commands.put(new String[]{"poll"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+                }))
+                .withAliases("dvc")
+                .withPermissions("manageDVCs", Permission.MANAGE_CHANNELS)
+                .register();
+        new Command("poll", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .map(c -> {
-                    /*if(!PermissionManager.hasPermission(e.getGuild().block(), e.getMember().get(), "createPoll", true))
-                        return BotUtils.sendNoPermissionsMessage(c);*/
                     if(args.size() < 4)
                         return false;
                     long duration = BotUtils.getPollDuration(args.get(0));
@@ -295,18 +298,17 @@ public class BotCommands {
                             .flatMap(m -> Flux.fromIterable(emojis)
                                     .filter(emoji -> cnt.getAndIncrement() < args.size())
                                     .map(ReactionEmoji::unicode)
-                                    .flatMap(m::addReaction)
+                                    .flatMap(em -> m.addReaction(em))
                                     .next()
                             )
                             .subscribe();
                     return true;
-                }),
-                "createPoll", true
-        ));
-        commands.put(new String[]{"invites", "invite"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+                }))
+                .withPermissions("createPoll")
+                .usableByEveryone(true)
+                .register();
+        new Command("invites", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .map(c -> {
-                    /*if(!PermissionManager.hasPermission(e.getGuild().block(), e.getMember().get(), "blockInvites", false, Permission.MANAGE_MESSAGES))
-                        return BotUtils.sendNoPermissionsMessage(c);*/
                     if(args.size() == 1){
                         if(args.get(0).equalsIgnoreCase("get")){
                             SQLGuild sg = DataManager.getGuild(e.getGuildId().map(Snowflake::asLong).orElseThrow());
@@ -370,11 +372,15 @@ public class BotCommands {
                         }
                     }
                     return false;
-                }),
-                false, false, "blockInvites", false, Permission.MANAGE_MESSAGES
-        ));
-        commands.put(new String[]{"permissions", "perms"}, new Command((e, prefix, args, lang) -> Mono.just(false), "permissions", false, Permission.ADMINISTRATOR));
-        commands.put(new String[]{"script", "scripts"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+                }))
+                .withAliases("invite")
+                .withPermissions("blockInvites", Permission.MANAGE_MESSAGES)
+                .register();
+        new Command("permissions")
+                .withAliases("perms")
+                .withPermissions("permissions", Permission.ADMINISTRATOR)
+                .register();
+        new Command("script", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .map(c -> {
                     /*if(args.size() == 1){
                         if(args.get(0).equalsIgnoreCase("upload") || args.get(0).equalsIgnoreCase("save")){
@@ -409,13 +415,12 @@ public class BotCommands {
                         }
                     }*/
                     return true;
-                }),
-                false, false, "manageScripts", false, Permission.ADMINISTRATOR
-        ));
-        commands.put(new String[]{"command", "commands", "cmd", "cmds"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+                }))
+                .withAliases("scripts")
+                .withPermissions("manageScripts", Permission.ADMINISTRATOR)
+                .register();
+        new Command("command", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .map(c -> {
-                    /*if(!PermissionManager.hasPermission(e.getGuild().block(), e.getMember().get(), "customCommands", false, Permission.MANAGE_MESSAGES))
-                        return BotUtils.sendNoPermissionsMessage(c);*/
                     if(args.size() == 1){
                         if(args.get(0).equalsIgnoreCase("list")){
                             Map<String, String> cc = DataManager.getCustomCommands(e.getGuildId().map(Snowflake::asLong).orElseThrow());
@@ -461,13 +466,12 @@ public class BotCommands {
                         }
                     }
                     return false;
-                }),
-                "manageCustomCommands", false, Permission.MANAGE_MESSAGES
-        ));
-        commands.put(new String[]{"blockchannel", "bc"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+                }))
+                .withAliases("commands", "cmds")
+                .withPermissions("manageCustomCommands", Permission.MANAGE_MESSAGES)
+                .register();
+        new Command("blockchannel", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .map(c -> {
-                    /*if(!PermissionManager.hasPermission(e.getGuild().block(), e.getMember().get(), "blockChannel", false, Permission.MANAGE_CHANNELS))
-                        return BotUtils.sendNoPermissionsMessage(c);*/
                     if(args.size() == 1){
                         if(args.get(0).equalsIgnoreCase("list")){
                             List<Long> blocked = DataManager.getBlockedChannels(e.getGuildId().map(Snowflake::asLong).orElseThrow());
@@ -500,13 +504,12 @@ public class BotCommands {
                         }
                     }
                     return false;
-                }),
-                "blockChannel", false, Permission.MANAGE_CHANNELS
-        ));
-        commands.put(new String[]{"unknowncommandmessage", "ucm"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+                }))
+                .withAliases("bc")
+                .withPermissions("blockChannel", Permission.MANAGE_CHANNELS)
+                .register();
+        new Command("unknowncommandmessage", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .map(c -> {
-                    /*if(!PermissionManager.hasPermission(e.getGuild().block(), e.getMember().get(), "unknowncommandmessage", false, Permission.MANAGE_MESSAGES))
-                        return BotUtils.sendNoPermissionsMessage(c);*/
                     if(args.size() == 1){
                         if(args.get(0).equalsIgnoreCase("get")){
                             String ucm = DataManager.getGuild(e.getGuildId().map(Snowflake::asLong).orElseThrow()).getUnknownCommandMessage();
@@ -533,16 +536,17 @@ public class BotCommands {
                         }
                     }
                     return false;
-                }),
-                "unknownCommandMessage", false, Permission.MANAGE_MESSAGES
-        ));
-        commands.put(new String[]{"joinrole", "jr"}, new Command((e, prefix, args, lang) -> Mono.just(true), false));
-        commands.put(new String[]{"joinmessage", "jm"}, new Command((e, prefix, args, lang) -> Mono.just(true), false));
-        commands.put(new String[]{"leavemessage", "lm"}, new Command((e, prefix, args, lang) -> Mono.just(true), false));
-        commands.put(new String[]{"banmessage", "bm"}, new Command((e, prefix, args, lang) -> Mono.just(true), false));
-        //commands.put(new String[]{"publicchannel", "pc"}, new Command((e, prefix, args, lang) -> Mono.just(true), false));
-        commands.put(new String[]{"report"}, new Command((e, prefix, args, lang) -> Mono.just(true), false));
-        commands.put(new String[]{"calc", "calculate", "math", "solve"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+                }))
+                .withAliases("ucm")
+                .withPermissions("unknownCommandMessage", Permission.MANAGE_MESSAGES)
+                .register();
+        new Command("joinrole").register();
+        new Command("joinmessage").register();
+        new Command("leavemessage").register();
+        new Command("banmessage").register();
+        //new Command("publicchannel").register();
+        new Command("report").register();
+        new Command("calc", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .filter(c -> args.size() > 0)
                 .flatMap(c -> Mono.just(new Expression(String.join(" ", args)))
                         .flatMap(expression -> {
@@ -552,13 +556,17 @@ public class BotCommands {
                             else
                                 return c.createEmbed(LocaleManager.getLanguageMessage(lang, "commands.calc.result", expression.getExpressionString(), "" + result, "" + (int)(expression.getComputingTime() * 1000)));
                         })
-                )
-                .thenReturn(true)
-                , false, true));
+                        .map(x -> true)
+                ))
+                .withAliases("solve", "calculate")
+                .withPermissions("calculate")
+                .usableByEveryone(true)
+                .usableInDM(true)
+                .register();
 
         /* GENERAL */
 
-        commands.put(new String[]{"help"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+        new Command("help", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .map(c -> {
                     AtomicInteger pageNbr = new AtomicInteger(0);
                     if(args.size() > 0) try{
@@ -569,12 +577,11 @@ public class BotCommands {
                                 BotUtils.sendHelpMessage(c, args.get(0), prefix, lang);
                                 return true;
                             }
-                            for(String[] aliases : commands.keySet())
-                                for(String alias : aliases)
-                                    if(alias.equalsIgnoreCase(args.get(0))){
-                                        BotUtils.sendHelpMessage(c, aliases[0], prefix, lang);
-                                        return true;
-                                    }
+                            Optional<Command> cmd = Command.getCommand(args.get(0));
+                            if(cmd.isPresent()){
+                                BotUtils.sendHelpMessage(c, cmd.get().getName(), prefix, lang);
+                                return true;
+                            }
                         }
                     }catch(NumberFormatException ignored){
                     }
@@ -590,17 +597,18 @@ public class BotCommands {
                                 .addField(pageName, page.values().stream().map(cmd -> BotUtils.formatString(cmd, prefix)).collect(Collectors.joining("\n")), false)
                                 .setFooter(LocaleManager.getLanguageString(lang, "help.footer", "" + (pageNbr.get() + 1), "" + pages.size()), null)
                                 .setColor(BotUtils.botColor)
-                        ).flatMap(m -> Flux.fromIterable(new ArrayList<>(Arrays.asList(BotUtils.arrowLeft, BotUtils.arrowRight, BotUtils.x)))
-                                .flatMap(m::addReaction)
+                        ).flatMap(m -> Flux.fromIterable(Arrays.asList(BotUtils.arrowLeft, BotUtils.arrowRight, BotUtils.x))
+                                .flatMap(em -> m.addReaction(em))
                                 .next()
                         ).subscribe();
                         break;
                     }
                     return true;
-                }),
-                false
-        ));
-        commands.put(new String[]{"about", "info", "l0c4lb0t"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+                }))
+                .usableInDM(true)
+                .usableByEveryone(true)
+                .register();
+        new Command("about", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .flatMap(c -> c.createEmbed(ecs -> ecs
                         .setTitle(LocaleManager.getLanguageString(lang, "commands.about.info.title"))
                         .setDescription(LocaleManager.getLanguageString(lang, "commands.about.info.content",
@@ -609,9 +617,13 @@ public class BotCommands {
                         ))
                         .setColor(BotUtils.botColor)
                 ))
-                .thenReturn(true)
-                , false, true));
-        commands.put(new String[]{"stats"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+                .map(x -> true)
+                )
+                .withAliases("l0c4lb0t")
+                .usableByEveryone(true)
+                .usableInDM(true)
+                .register();
+        new Command("stats", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .flatMap(c -> e.getClient().getGuilds().count()
                         .flatMap(guildCount -> e.getClient().getGuilds().flatMap(Guild::getMembers).count()
                                 .flatMap(memberCount -> e.getClient().getGuilds().flatMap(Guild::getMembers).map(User::getId).distinct().count()
@@ -664,29 +676,32 @@ public class BotCommands {
                                 )
                         )
                 )
-                .thenReturn(true)
-                , false, true));
+                .map(x -> true)
+                )
+                .usableByEveryone(true)
+                .usableInDM(true)
+                .register();
 
         /* MODERATION */
 
-        commands.put(new String[]{"resetnicks", "resetnicknames", "nickreset"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
-                .map(c -> {
-                    /*if(!PermissionManager.hasPermission(e.getGuild().block(), e.getMember().get(), "resetnicks", false, Permission.MANAGE_NICKNAMES))
-                        return BotUtils.sendNoPermissionsMessage(c);*/
-                    AtomicInteger cnt = new AtomicInteger(0);
-                    e.getGuild().flatMap(g -> g.getMembers()
-                            .filter(m -> m.getNickname().isPresent())
-                            .doOnNext(m -> cnt.incrementAndGet())
-                            .flatMap(m -> m.edit(gmes -> gmes.setNickname(null)))
-                            .next()
-                    ).subscribe();
-                    c.createMessage("Reset " + cnt.get() + " nicknames").subscribe();
-                    return true;
-                }),
-                "resetNicks", false, Permission.MANAGE_NICKNAMES
-        ));
-        commands.put(new String[]{"reactionroles", "reactionrole", "rr"}, new Command((e, prefix, args, lang) -> Mono.just(true), false));
-        commands.put(new String[]{"ban"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel().ofType(GuildMessageChannel.class)
+        new Command("resetnicks", (e, prefix, args, lang) -> e.getMessage().getChannel()
+                .flatMap(c -> e.getGuild()
+                        .flatMapMany(Guild::getMembers)
+                        .filter(m -> m.getNickname().isPresent())
+                        .flatMap(m -> m.edit(gmes -> gmes.setNickname(null))
+                                .thenReturn(true)
+                        )
+                        .count()
+                        .flatMap(cnt -> c.createMessage("Reset " + cnt + " nicknames"))
+                        .map(x -> true)
+                ))
+                .withAliases("nickreset")
+                .withPermissions("resetNicks", Permission.MANAGE_NICKNAMES)
+                .register();
+        new Command("reactionroles")
+                .withAliases("rr")
+                .register();
+        new Command("ban", (e, prefix, args, lang) -> e.getMessage().getChannel().ofType(GuildMessageChannel.class)
                 .filter(c -> !args.isEmpty())
                 .flatMap(c -> BotUtils.getUserFromArgument(args.get(0))
                         .flatMap(u -> c.getGuild()
@@ -695,9 +710,10 @@ public class BotCommands {
                         )
                         .switchIfEmpty(c.createMessage("could not find user"))
                         .thenReturn(true)
-                )
-                , false, false, "ban", false, Permission.BAN_MEMBERS));
-        commands.put(new String[]{"kick"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+                ))
+                .withPermissions("ban", Permission.BAN_MEMBERS)
+                .register();
+        new Command("kick", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .filter(c -> !args.isEmpty())
                 .flatMap(c -> BotUtils.getMemberFromArgument(e.getGuild(), args.get(0))
                         .flatMap(m -> m.kick(e.getMember().map(Member::getId).map(Snowflake::asString).orElseThrow() + " performed kick: " + (args.size() > 1 ? String.join(" ", args.subList(1, args.size())) : ""))
@@ -705,9 +721,10 @@ public class BotCommands {
                         )
                         .switchIfEmpty(c.createMessage("could not find user " + args.get(0)))
                         .thenReturn(true)
-                )
-                , false, false, "kick", false, Permission.KICK_MEMBERS));
-        commands.put(new String[]{"unban"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+                ))
+                .withPermissions("kick", Permission.KICK_MEMBERS)
+                .register();
+        new Command("unban", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .filter(c -> !args.isEmpty())
                 .flatMap(c -> BotUtils.getUserFromArgument(args.get(0))
                         .flatMap(u -> e.getGuild()
@@ -720,13 +737,12 @@ public class BotCommands {
                         )
                         .switchIfEmpty(c.createMessage("could not find user"))
                         .thenReturn(true)
-                )
-                , false, false, "unban", false, Permission.BAN_MEMBERS));
-        commands.put(new String[]{"anticaps", "nocaps"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+                ))
+                .withPermissions("unban", Permission.BAN_MEMBERS)
+                .register();
+        new Command("anticaps", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .filter(c -> !args.isEmpty())
                 .map(c -> {
-                    /*if(!PermissionManager.hasPermission(e.getGuild().block(), e.getMember().get(), "anticaps", false, Permission.MANAGE_MESSAGES))
-                        return BotUtils.sendNoPermissionsMessage(c);*/
                     if(args.size() == 1){
 
                     }else if(args.size() == 2){
@@ -735,23 +751,33 @@ public class BotCommands {
 
                     }
                     return false;
-                }),
-                "setAntiCaps", false, Permission.MANAGE_MESSAGES
-        ));
+                }))
+                .withAliases("nocaps")
+                .withPermissions("setAntiCaps", Permission.MANAGE_MESSAGES)
+                .register();
 
         /* FUN */
 
-        commands.put(new String[]{"coinflip", "coin"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+        new Command("coinflip", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .flatMap(c -> c.createEmbed(LocaleManager.getLanguageMessage(lang, "commands.coinflip." + (new Random().nextBoolean() ? "heads" : "tails") )))
-                .thenReturn(true)
-                , false, true, "coinflip", true));
-        commands.put(new String[]{"dice"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+                .map(x -> true)
+                )
+                .withAliases("coin")
+                .withPermissions("coinflip")
+                .usableByEveryone(true)
+                .usableInDM(true)
+                .register();
+        new Command("dice", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .flatMap(c -> c.createEmbed(LocaleManager.getLanguageMessage(lang, "commands.dice.result", ""+(new Random().nextInt(6)+1))))
-                .thenReturn(true)
-                , false, true, "dice", true));
-        commands.put(new String[]{"minesweeper"}, new Command((e, prefix, args, lang) -> Mono.just(true), false));
-        commands.put(new String[]{"randomnumber", "rn"}, new Command((e, prefix, args, lang) -> Mono.just(true), false));
-        commands.put(new String[]{"remind"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+                .map(x -> true)
+                )
+                .withPermissions("dice")
+                .usableByEveryone(true)
+                .usableInDM(true)
+                .register();
+        new Command("minesweeper").register();
+        new Command("randomnumber").register();
+        new Command("remind", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .filter(c -> args.size() > 1)
                 .map(c -> {
                     long duration = BotUtils.getDuration(args.get(0));
@@ -767,22 +793,31 @@ public class BotCommands {
                             .subscribe();
                     c.createEmbed(LocaleManager.getLanguageMessage(lang, "commands.remind.set", BotUtils.getDuration(duration / 1000), reason)).subscribe();
                     return true;
-                })
-                , false, true));
-        commands.put(new String[]{"cat"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+                }))
+                .withPermissions("setReminder")
+                .usableByEveryone(true)
+                .usableInDM(true)
+                .register();
+        new Command("cat", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .flatMap(c -> c.createMessage(SFWUtils.getCat()))
-                .thenReturn(true),
-                false
-        ));
-        commands.put(new String[]{"dog"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+                .map(x -> true)
+                )
+                .withPermissions("cat")
+                .usableInDM(true)
+                .usableByEveryone(true)
+                .register();
+        new Command("dog", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .flatMap(c -> c.createMessage(SFWUtils.getDog()))
-                .thenReturn(true),
-                false
-        ));
+                .map(x -> true)
+                )
+                .withPermissions("dog")
+                .usableByEveryone(true)
+                .usableInDM(true)
+                .register();
 
         /* MUSIC COMMANDS */
 
-        commands.put(new String[]{"join"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+        new Command("join", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .flatMap(c -> Mono.justOrEmpty(e.getMember())
                         .flatMap(m -> m.getVoiceState()
                                 .flatMap(vs -> vs.getChannel()
@@ -792,100 +827,111 @@ public class BotCommands {
                                 )
                         )
                 )
-                .thenReturn(true),
-                false
-        ));
-        commands.put(new String[]{"stop"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+                .map(x -> true)
+                )
+                .withPermissions("join")
+                .usableByEveryone(true)
+                .register();
+        new Command("stop", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .flatMap(c -> Mono.justOrEmpty(MusicManager.getGuildConnection(e.getGuildId().map(Snowflake::asLong).orElseThrow()))
                         .doOnNext(VoiceConnection::disconnect)
                 )
-                .thenReturn(true),
-                false
-        ));
-        commands.put(new String[]{"play"}, new Command((e, prefix, args, lang) -> Mono.just(true), false));
-        commands.put(new String[]{"skip"}, new Command((e, prefix, args, lang) -> Mono.just(true), false));
-        commands.put(new String[]{"search"}, new Command((e, prefix, args, lang) -> Mono.just(true), false));
-        commands.put(new String[]{"queue"}, new Command((e, prefix, args, lang) -> Mono.just(true), false));
-        commands.put(new String[]{"remove"}, new Command((e, prefix, args, lang) -> Mono.just(true), false));
-        commands.put(new String[]{"nowplaying", "np"}, new Command((e, prefix, args, lang) -> Mono.just(true), false));
-        commands.put(new String[]{"volume", "vol"}, new Command((e, prefix, args, lang) -> Mono.just(true), false));
-        commands.put(new String[]{"pause"}, new Command((e, prefix, args, lang) -> Mono.just(true), false));
-        commands.put(new String[]{"resume"}, new Command((e, prefix, args, lang) -> Mono.just(true), false));
-        commands.put(new String[]{"seek"}, new Command((e, prefix, args, lang) -> Mono.just(true), false));
-        commands.put(new String[]{"playlist", "playlists"}, new Command((e, prefix, args, lang) -> Mono.just(true), false));
-        commands.put(new String[]{"loop"}, new Command((e, prefix, args, lang) -> Mono.just(true), false));
-        commands.put(new String[]{"playingmessages", "playingmessage", "pm"}, new Command((e, prefix, args, lang) -> Mono.just(true), false));
+                .map(x -> true)
+                )
+                .withPermissions("stop")
+                .usableByEveryone(true)
+                .register();
+        new Command("play").register();
+        new Command("skip").register();
+        new Command("search").register();
+        new Command("queue").register();
+        new Command("remove").register();
+        new Command("nowplaying")
+                .withAliases("np")
+                .register();
+        new Command("volume").register();
+        new Command("pause").register();
+        new Command("resume").register();
+        new Command("seek").register();
+        new Command("playlist")
+                .withAliases("playlists")
+                .register();
+        new Command("loop").register();
+        new Command("playingmessages")
+                .withAliases("pm")
+                .register();
 
         /* BOT STAFF ONLY */
 
-        commands.put(new String[]{"shutdown", "exit"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+        new Command("shutdown", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .map(c -> {
                     e.getClient().logout().block();
                     System.exit(0);
                     return true;
-                })).requiresBotOwner(true)
-        );
-        //commands.put(new String[]{"getid"}, new Command((e, prefix, args, lang) -> Mono.just(true), true));
-        //commands.put(new String[]{"delpm"}, new Command((e, prefix, args, lang) -> Mono.just(true), true));
-        //commands.put(new String[]{"pcban"}, new Command((e, prefix, args, lang) -> Mono.just(true), true));
-        commands.put(new String[]{"botban"}, new Command().requiresBotOwner(true));
-        commands.put(new String[]{"guildban"}, new Command().requiresBotOwner(true));
-        //commands.put(new String[]{"disablepc"}, new Command((e, prefix, args, lang) -> Mono.just(true), true));
-        commands.put(new String[]{"bcall"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
-                .filter(c -> !args.isEmpty())
-                .map(c -> {
-                    Consumer<MessageCreateSpec> mcsc = BotUtils.jsonToMessage(String.join(" ", args));
-                    c.createMessage(mcsc)
-                            .doOnNext(m -> {
-                                AtomicReference<Disposable> d = new AtomicReference<>();
-                                d.set(e.getClient().getEventDispatcher().on(ReactionAddEvent.class)
-                                        .filter(re -> re.getUserId().asLong() == e.getMessage().getAuthor().map(User::getId).map(Snowflake::asLong).orElse(0L))
-                                        .map(ReactionAddEvent::getEmoji)
-                                        .map(ReactionEmoji::asUnicodeEmoji)
-                                        .filter(Optional::isPresent)
-                                        .map(Optional::get)
-                                        .doOnNext(em -> {
-                                            if(em.equals(BotUtils.checkmark)){
-                                                c.createMessage("sending")
-                                                        .flatMap(msg -> e.getClient().getGuilds()
-                                                                .flatMap(g -> g.getChannels()
-                                                                        .ofType(TextChannel.class)
-                                                                        .filterWhen(ch -> ch.getEffectivePermissions(e.getClient().getSelfId().orElseThrow()).map(perms -> perms.contains(Permission.SEND_MESSAGES)))
+                }))
+                .withAliases("exit").requiresBotOwner(true)
+                .register();
+        //new Command("getid", (e, prefix, args, lang) -> Mono.just(true), true));
+        //new Command("delpm", (e, prefix, args, lang) -> Mono.just(true), true));
+        //new Command("pcban", (e, prefix, args, lang) -> Mono.just(true), true));
+        new Command("botban").requiresBotOwner(true).register();
+        new Command("guildban").requiresBotOwner(true).register();
+        //new Command("disablepc").requiresBotOwner(true));
+        new Command("bcall", (e, prefix, args, lang) -> e.getMessage().getChannel()
+                        .filter(c -> !args.isEmpty())
+                        .map(c -> {
+                            Consumer<MessageCreateSpec> mcsc = BotUtils.jsonToMessage(String.join(" ", args));
+                            c.createMessage(mcsc)
+                                    .doOnNext(m -> {
+                                        AtomicReference<Disposable> d = new AtomicReference<>();
+                                        d.set(e.getClient().getEventDispatcher().on(ReactionAddEvent.class)
+                                                .filter(re -> re.getUserId().asLong() == e.getMessage().getAuthor().map(User::getId).map(Snowflake::asLong).orElse(0L))
+                                                .map(ReactionAddEvent::getEmoji)
+                                                .map(ReactionEmoji::asUnicodeEmoji)
+                                                .filter(Optional::isPresent)
+                                                .map(Optional::get)
+                                                .doOnNext(em -> {
+                                                    if(em.equals(BotUtils.checkmark)){
+                                                        c.createMessage("sending")
+                                                                .flatMap(msg -> e.getClient().getGuilds()
+                                                                        .flatMap(g -> g.getChannels()
+                                                                                .ofType(TextChannel.class)
+                                                                                .filterWhen(ch -> ch.getEffectivePermissions(e.getClient().getSelfId().orElseThrow()).map(perms -> perms.contains(Permission.SEND_MESSAGES)))
+                                                                                .next()
+                                                                        )
+                                                                        .flatMap(tc -> tc.createMessage(mcsc))
                                                                         .next()
+                                                                        .flatMap(x -> c.createMessage("sent"))
+                                                                        .flatMap(x -> msg.delete())
                                                                 )
-                                                                .flatMap(tc -> tc.createMessage(mcsc))
-                                                                .next()
-                                                                .flatMap(x -> c.createMessage("sent"))
-                                                                .flatMap(x -> msg.delete())
-                                                        )
-                                                        .subscribe();
-                                                d.get().dispose();
-                                            }else if(em.equals(BotUtils.x)){
-                                                c.createMessage("cancelled")
-                                                        .flatMap(msg -> m.delete())
-                                                        .subscribe();
-                                                d.get().dispose();
-                                            }
-                                        })
-                                        .subscribe()
-                                );
-                            })
-                            .flatMapMany(m -> Flux.fromArray(new ReactionEmoji[]{BotUtils.checkmark, BotUtils.x})
-                                    .flatMap(m::addReaction)
-                            )
-                            .subscribe();
-                    return true;
-                    // Removing the // in the line below causes an AssertionError when compiling. IntelliJ does not show any error in the code and for other commands (sql, shutdown) it is working perfectly fine, but not for this one. When removing the interface function from the Command constructor the code can be executed again.
-                }))//.requiresBotOwner(true)
-        );
-        commands.put(new String[]{"sql"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+                                                                .subscribe();
+                                                        d.get().dispose();
+                                                    }else if(em.equals(BotUtils.x)){
+                                                        c.createMessage("cancelled")
+                                                                .flatMap(msg -> m.delete())
+                                                                .subscribe();
+                                                        d.get().dispose();
+                                                    }
+                                                })
+                                                .subscribe()
+                                        );
+                                    })
+                                    .flatMapMany(m -> Flux.fromIterable(Arrays.asList(BotUtils.checkmark, BotUtils.x))
+                                            .flatMap(em -> m.addReaction(em))
+                                    )
+                                    .subscribe();
+                            return true;
+                        })
+                )
+                .requiresBotOwner(true)
+                .register();
+        new Command("sql", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .filter(c -> !args.isEmpty())
                 .flatMap(c -> {
                     String sql = String.join(" ", args);
                     SQLExecutor executor = DataManager.executeSQL(sql);
-                    if(!executor.isSuccessful()){
+                    if(!executor.isSuccessful())
                         return c.createEmbed(LocaleManager.getLanguageMessage(lang, "commands.sql.error", executor.getException().substring(0, Math.min(2048, executor.getException().length())))).map(x -> true);
-                    }
                     if(executor.isQuery()){
                         SafeResultSet rs = executor.getResultSet();
                         ObjectMapper mapper = new ObjectMapper();
@@ -915,11 +961,12 @@ public class BotCommands {
                     }else{
                         return c.createEmbed(LocaleManager.getLanguageMessage(lang, "commands.sql.success", ""+executor.getAffectedRowCount())).map(x -> true);
                     }
-                })).requiresBotOwner(true)
-        );
+                }))
+                .requiresBotOwner(true)
+                .register();
 
 
-        commands.put(new String[]{"botsuggest", "botsuggestion", "botsuggestions"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+        new Command("botsuggest", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .filter(c -> args.size() > 0)
                 .map(c -> {
                     if((args.size() == 1 || args.size() == 2) && args.get(0).equalsIgnoreCase("list")){
@@ -941,9 +988,8 @@ public class BotCommands {
                                 .setTitle("Bot Suggestions")
                                 .setDescription(s)
                                 .setFooter("Page " + pageNumber.get() + "/" + maxPageNumber, null)
-                        ).flatMap(m -> Flux.fromIterable(new ArrayList<>(Arrays.asList(BotUtils.arrowLeft, BotUtils.arrowRight)))
-                                .flatMap(m::addReaction)
-                                .then()
+                        ).flatMapMany(m -> Flux.fromIterable(Arrays.asList(BotUtils.arrowLeft, BotUtils.arrowRight))
+                                .flatMap(em -> m.addReaction(em))
                         ).subscribe();
                         return true;
                     }else if(args.size() == 2 && args.get(0).equalsIgnoreCase("get")){
@@ -1008,7 +1054,7 @@ public class BotCommands {
                         return true;
                     }else if(args.size() > 3 && args.get(0).equalsIgnoreCase("update")){
                         if(!BotUtils.getBotAdmins().contains(e.getMessage().getAuthor().map(User::getId).map(Snowflake::asLong).orElseThrow()))
-                            return BotUtils.sendNoPermissionsMessage(c);
+                            return BotUtils.sendNoPermissionsMessage(c, lang);
                         try{
                             int sId = Integer.parseInt(args.get(1));
                             SQLBotSuggestion suggestion = DataManager.getBotSuggestion(sId);
@@ -1056,12 +1102,14 @@ public class BotCommands {
                         return false;
                     }
                     return false;
-                }),
-                false
-        ));
+                }))
+                .withAliases("botsuggestion", "botsuggestions")
+                .usableByEveryone(true)
+                .usableInDM(true)
+                .register();
 
 
-        commands.put(new String[]{"feedback"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+        new Command("feedback", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .filter(c -> args.size() > 0)
                 .map(c -> {
                     if((args.size() == 1 || args.size() == 2) && args.get(0).equalsIgnoreCase("list")){
@@ -1083,9 +1131,8 @@ public class BotCommands {
                                 .setTitle("Feedback")
                                 .setDescription(s)
                                 .setFooter("Page " + pageNumber.get() + "/" + maxPageNumber, null)
-                        ).flatMap(m -> Flux.fromIterable(new ArrayList<>(Arrays.asList(BotUtils.arrowLeft, BotUtils.arrowRight)))
-                                .flatMap(m::addReaction)
-                                .then()
+                        ).flatMapMany(m -> Flux.fromIterable(Arrays.asList(BotUtils.arrowLeft, BotUtils.arrowRight))
+                                .flatMap(em -> m.addReaction(em))
                         ).subscribe();
                         return true;
                     }else if(args.size() == 2 && args.get(0).equalsIgnoreCase("get")){
@@ -1154,8 +1201,8 @@ public class BotCommands {
                             return BotUtils.sendErrorMessage(c);
                         return true;
                     }else if(args.size() > 3 && args.get(0).equalsIgnoreCase("update")){
-                        if(!PermissionManager.hasPermission(e.getGuild().block(), e.getMember().get(), "updateSuggestions", false, Permission.MANAGE_GUILD))
-                            return BotUtils.sendNoPermissionsMessage(c);
+                        if(!PermissionManager.hasPermission(e.getGuild().block(), e.getMember().get(), "updateFeedback", false, Permission.MANAGE_GUILD))
+                            return BotUtils.sendNoPermissionsMessage(c, lang);
                         try{
                             int sId = Integer.parseInt(args.get(1));
                             SQLFeedback suggestion = DataManager.getSuggestion(e.getGuildId().map(Snowflake::asLong).orElseThrow(), sId);
@@ -1203,39 +1250,50 @@ public class BotCommands {
                         return false;
                     }
                     return false;
-                }),
-                false
-        ));
+                }))
+                .withPermissions("createFeedback")
+                .usableByEveryone(true)
+                .register();
 
         /* NSFW */
 
-        commands.put(new String[]{"boobs", "boob"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel().ofType(MessageChannel.class)
+        new Command("boobs", (e, prefix, args, lang) -> e.getMessage().getChannel().ofType(MessageChannel.class)
                 .flatMap(c -> c.createMessage(NSFWUtils.getBoobs()))
-                .thenReturn(true),
-                true, true
-        ));
-        commands.put(new String[]{"ass", "arse"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel().ofType(MessageChannel.class)
+                .thenReturn(true)
+                )
+                .nsfwOnly(true)
+                .usableInDM(true)
+                .register();
+        new Command("ass", (e, prefix, args, lang) -> e.getMessage().getChannel().ofType(MessageChannel.class)
                 .flatMap(c -> c.createMessage(NSFWUtils.getAss()))
-                .thenReturn(true),
-                true, true
-        ));
-        commands.put(new String[]{"asian"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel().ofType(MessageChannel.class)
+                .thenReturn(true)
+                )
+                .nsfwOnly(true)
+                .usableInDM(true)
+                .register();
+        new Command("asian", (e, prefix, args, lang) -> e.getMessage().getChannel().ofType(MessageChannel.class)
                 .flatMap(c -> c.createMessage(NSFWUtils.getAsian()))
-                .thenReturn(true),
-                true, true
-        ));
-        commands.put(new String[]{"pussy"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel().ofType(MessageChannel.class)
+                .thenReturn(true)
+                )
+                .nsfwOnly(true)
+                .usableInDM(true)
+                .register();
+        new Command("pussy", (e, prefix, args, lang) -> e.getMessage().getChannel().ofType(MessageChannel.class)
                 .flatMap(c -> c.createMessage(SFWUtils.getCat()))
-                .thenReturn(true),
-                true, true
-        ));
-        commands.put(new String[]{"cock"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel().ofType(MessageChannel.class)
+                .thenReturn(true)
+                )
+                .nsfwOnly(true)
+                .usableInDM(true)
+                .register();
+        new Command("cock", (e, prefix, args, lang) -> e.getMessage().getChannel().ofType(MessageChannel.class)
                 .flatMap(c -> c.createMessage(SFWUtils.getCock()))
-                .thenReturn(true),
-                true, true
-        ));
+                .thenReturn(true)
+                )
+                .nsfwOnly(true)
+                .usableInDM(true)
+                .register();
 
-        commands.put(new String[]{"backup", "backups"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+        new Command("backup", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .filter(c -> args.size() > 0)
                 .map(c -> {
                     if(args.size() == 2 && (args.get(0).equalsIgnoreCase("automated") || args.get(0).equalsIgnoreCase("automation") || args.get(0).equalsIgnoreCase("automate") || args.get(0).equalsIgnoreCase("automatic"))){
@@ -1288,11 +1346,12 @@ public class BotCommands {
                         }
                     }
                     return false;
-                }),
-                false
-        ));
+                }))
+                .withAliases("backups")
+                .withPermissions("manageBackups", Permission.ADMINISTRATOR)
+                .register();
 
-        commands.put(new String[]{"urbandictionary", "urban", "define"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+        new Command("urbandictionary", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .filter(c -> !args.isEmpty())
                 .map(c -> {
                     UrbanDictionary dictionary = new UrbanDictionary(String.join(" ", args));
@@ -1314,11 +1373,15 @@ public class BotCommands {
                             .setTimestamp(definition.getTime())
                     )).subscribe();
                     return true;
-                }),
-                true, true
-        ));
+                }))
+                .withAliases("define")
+                .withPermissions("urbandictionary")
+                .usableByEveryone(true)
+                .usableInDM(true)
+                .nsfwOnly(true)
+                .register();
 
-        commands.put(new String[]{"wikipedia", "wiki"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel()
+        new Command("wikipedia", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .filter(c -> !args.isEmpty())
                 .doOnNext(c -> {
                     String word = String.join(" ", args);
@@ -1331,10 +1394,15 @@ public class BotCommands {
                     }
                 })
                 .thenReturn(true)
-                , true, true
-        ));
+                )
+                .withAliases("wiki")
+                .withPermissions("wikipedia")
+                .usableByEveryone(true)
+                .usableInDM(true)
+                .nsfwOnly(true)
+                .register();
 
-        commands.put(new String[]{"clear"}, new Command((e, prefix, args, lang) -> e.getMessage().getChannel().ofType(GuildMessageChannel.class)
+        new Command("clear", (e, prefix, args, lang) -> e.getMessage().getChannel().ofType(GuildMessageChannel.class)
                 .filter(c -> args.size() == 1 || args.size() == 2)
                 .flatMap(c -> {
                     try{
@@ -1374,8 +1442,10 @@ public class BotCommands {
                     }catch(NumberFormatException ex){
                         return Mono.just(false);
                     }
-                })
-                ,false, false, "clear", false, Permission.MANAGE_MESSAGES).withRatelimit(new RatelimitUtils.Ratelimit(2, 10_000)));
+                }))
+                .withPermissions("clear", Permission.MANAGE_MESSAGES)
+                .withRatelimit(new RatelimitUtils.Ratelimit(2, 10_000))
+                .register();
 
     }
 

@@ -58,9 +58,9 @@ public class BotUtils {
     /**
      *
      */
-    public static boolean isBotAdmin(long uId, MessageChannel c/*, String lang*/){
+    public static boolean isBotAdmin(long uId, MessageChannel c, String lang){
         if(getBotAdmins().contains(uId)) return true;
-        sendNoPermissionsMessage(c/*, lang*/);
+        sendNoPermissionsMessage(c, lang);
         return false;
     }
 
@@ -235,28 +235,10 @@ public class BotUtils {
      * @param prefix  The prefix the message should start with
      * @return Whether the {@link String} is the given command
      */
-    public static boolean isCommand(String content, String[] cmd, String prefix){
+    public static boolean isCommand(String content, String cmd, String prefix){
         prefix = escapeRegex(prefix);
         String bId = BotMain.client.getSelfId().get().asString();
-        return Pattern.compile("^(?:" + prefix + "|\\<@\\!?" + bId + "\\> ?)(?i)(?:" + String.join("|", cmd) + ")(?-i)(?: (.*))?$", Pattern.DOTALL).matcher(content).matches();
-    }
-
-    /**
-     * Truncates a {@link String}
-     *
-     * @param content The message content you want to truncate
-     * @param cmd     The array of {@link String}s that are valid names for the command
-     * @param prefix  The prefix
-     * @return The truncated {@link String}
-     */
-    public static String truncateMessage(String content, String[] cmd, String prefix){
-        prefix = escapeRegex(prefix);
-        String bId = BotMain.client.getSelfId().get().asString();
-        Matcher matcher = Pattern.compile("^(?:" + prefix + "|\\<@\\!?" + bId + "\\> ?)(?i)(?:" + String.join("|", cmd) + ")(?-i)(?: (.*))?$", Pattern.DOTALL).matcher(content);
-        if(matcher.matches())
-            return matcher.group(1) == null ? "" : matcher.group(1);
-        else
-            return null;
+        return Pattern.compile("^(?:" + prefix + "|\\<@\\!?" + bId + "\\> ?)(?i)(?:" + cmd + ")(?i)(?: (.*))?$", Pattern.DOTALL).matcher(content).matches();
     }
 
     /**
@@ -520,8 +502,8 @@ public class BotUtils {
      * @param channel The {@link MessageChannel} the {@link Message} should get sent in
      * @return A {@link Mono} with the value true
      */
-    public static boolean sendNoPermissionsMessage(MessageChannel channel/*, String lang*/){
-        channel.createEmbed(LocaleManager.getLanguageMessage("en", "noPermissions")).subscribe();
+    public static boolean sendNoPermissionsMessage(MessageChannel channel, String lang){
+        channel.createEmbed(LocaleManager.getLanguageMessage(lang, "noPermissions")).subscribe();
         return true;
     }
 

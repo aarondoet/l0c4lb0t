@@ -870,7 +870,7 @@ public class ScriptExecutor {
         replace.put("mentionseveryone", "" + m.mentionsEveryone());
     }
 
-    public static void onCommandEvent(MessageCreateEvent e, String[] command, List<String> args, boolean success){
+    public static void onCommandEvent(MessageCreateEvent e, String command, List<String> args, boolean success){
         Map<String, String> replace = new HashMap<>();
         addChannelVariables(replace, e.getMessage().getChannel().ofType(GuildMessageChannel.class).block());
         addMessageVariables(replace, e.getMessage());

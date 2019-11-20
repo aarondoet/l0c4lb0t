@@ -36,6 +36,7 @@ public class PermissionManager {
 
     public static boolean hasPermission(Guild g, Member m, String cmd, boolean everyone, Permission... defaultPerms){
         if(m == null) return false;
+        if(cmd == null) return true;
         if(BotUtils.getBotAdmins().contains(m.getId().asLong())) return true;
         if(g.getOwnerId().asLong() == m.getId().asLong()) return true;
 
@@ -115,6 +116,7 @@ public class PermissionManager {
 
     public static boolean hasPermission(Guild g, Member m, GuildMessageChannel c, String cmd, boolean everyone, Permission... defaultPerms){
         if(m == null) return false;
+        if(cmd == null) return true;
         if(BotUtils.getBotAdmins().contains(m.getId().asLong())) return true;
         if(g.getOwnerId().asLong() == m.getId().asLong()) return true;
 

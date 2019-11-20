@@ -1,6 +1,7 @@
 package Main;
 
 import CommandHandling.BotCommands;
+import CommandHandling.Command;
 import DataManager.*;
 import DataManager.SQLGuild;
 import Scripts.ScriptExecutor;
@@ -75,32 +76,31 @@ public class BotEvents {
                 .flatMap(e -> Mono.justOrEmpty(e.getMessage().getContent())
                         .flatMap(content -> Mono.just(BotUtils.getPrefix(e.getGuildId().get().asLong()))
                                 // commands
-                                .flatMap(pref -> Flux.fromIterable(BotCommands.commands.entrySet())
-                                        //.filter(cmd -> BotUtils.isCommand(content, cmd.getKey(), pref)) // removed, bc it is part of truncateMessage now (returns empty when it is not the command)
-                                        .flatMap(cmd -> Mono.justOrEmpty(BotUtils.truncateMessage(content, cmd.getKey(), pref))
+                                .flatMap(pref -> Flux.fromIterable(Command.getCommands())
+                                        .filter(Command::isUsableInGuilds)
+                                        .flatMap(cmd -> Mono.justOrEmpty(cmd.truncateMessage(pref, content))
                                                 // command found
                                                 .doOnNext(truncated -> {
                                                     DataManager.updateStats("received_command_count");
                                                     DataManager.updateGuildStats(e.getGuildId().get().asLong(), "received_command_count");
                                                 })
-                                                .filter(truncated -> cmd.getValue().isUsableInGuilds())
-                                                .filterWhen(truncated -> e.getGuild().map(g -> g.getOwnerId().asLong() == e.getMember().get().getId().asLong() || !cmd.getValue().requiresOwner()))
+                                                .filterWhen(truncated -> e.getGuild().map(g -> g.getOwnerId().asLong() == e.getMember().get().getId().asLong() || !cmd.requiresOwner()))
                                                 .flatMap(truncated -> e.getMessage().getChannel().ofType(GuildMessageChannel.class)
                                                         .flatMap(channel -> Mono.just(LocaleManager.getGuildLanguage(e.getGuildId().get().asLong()))
-                                                                .filter(lang -> !cmd.getValue().requiresBotOwner() || BotUtils.isBotAdmin(e.getMessage().getAuthor().map(User::getId).map(Snowflake::asLong).orElseThrow(), channel/*, lang*/))
-                                                                .filter(lang -> !RatelimitUtils.isGuildRatelimited(e.getGuildId().get().asLong(), cmd.getValue().getRatelimit(), channel, LocaleManager.getGuildLanguage(e.getGuildId().get().asLong())))
-                                                                .filter(lang -> !cmd.getValue().isNsfwOnly() || BotUtils.checkChannelForNSFW(channel))
+                                                                .filter(lang -> !cmd.requiresBotOwner() || BotUtils.isBotAdmin(e.getMessage().getAuthor().map(User::getId).map(Snowflake::asLong).orElseThrow(), channel, lang))
+                                                                .filter(lang -> !RatelimitUtils.isGuildRatelimited(e.getGuildId().get().asLong(), cmd.getRatelimit(), channel, LocaleManager.getGuildLanguage(e.getGuildId().get().asLong())))
+                                                                .filter(lang -> !cmd.isNsfwOnly() || BotUtils.checkChannelForNSFW(channel))
                                                                 .flatMap(lang -> Mono.justOrEmpty(BotUtils.messageToArgs(truncated))
                                                                         .flatMap(args -> e.getGuild()
                                                                                 .flatMap(guild -> {
-                                                                                    if(!PermissionManager.hasPermission(guild, e.getMember().get(), channel, cmd.getValue().getBotPermission(), cmd.getValue().usableByEveryone(), cmd.getValue().getDefaultPerms()))
-                                                                                        return Mono.just(BotUtils.sendNoPermissionsMessage(channel/*, lang*/));
-                                                                                    return cmd.getValue().getExecutable().execute(e, pref, args, lang).doOnError(Throwable::printStackTrace).onErrorReturn(false).defaultIfEmpty(false)
+                                                                                    if(!PermissionManager.hasPermission(guild, e.getMember().get(), channel, cmd.getBotPermission(), cmd.usableByEveryone(), cmd.getDefaultPerms()))
+                                                                                        return Mono.just(BotUtils.sendNoPermissionsMessage(channel, lang));
+                                                                                    return cmd.getExecutable().execute(e, pref, args, lang).doOnError(Throwable::printStackTrace).onErrorReturn(false).defaultIfEmpty(false)
                                                                                             // SCRIPT EXECUTION START
-                                                                                            .doOnNext(success -> ScriptExecutor.onCommandEvent(e, cmd.getKey(), args, success))
+                                                                                            .doOnNext(success -> ScriptExecutor.onCommandEvent(e, cmd.getName(), args, success))
                                                                                             // SCRIPT EXECUTION END
                                                                                             .filter(success -> !success)
-                                                                                            .doOnNext(success -> BotUtils.sendHelpMessage(channel, cmd.getKey()[0], pref, lang))
+                                                                                            .doOnNext(success -> BotUtils.sendHelpMessage(channel, cmd.getName(), pref, lang))
                                                                                             .defaultIfEmpty(true);
                                                                                 })
                                                                         )
@@ -110,7 +110,7 @@ public class BotEvents {
                                         )
                                         // custom commands
                                         .switchIfEmpty(Flux.fromIterable(DataManager.getCustomCommands(e.getGuildId().get().asLong()).entrySet())
-                                                .filter(cmd -> BotUtils.isCommand(content, new String[]{cmd.getKey()}, pref))
+                                                .filter(cmd -> BotUtils.isCommand(content, cmd.getKey(), pref))
                                                 // custom command found
                                                 .doOnNext(truncated -> {
                                                     DataManager.updateStats("received_custom_command_count");
@@ -124,13 +124,13 @@ public class BotEvents {
                                         )
                                         // no command found
                                         .switchIfEmpty(Mono.just(Optional.ofNullable(DataManager.getGuild(e.getGuildId().get().asLong()).getUnknownCommandMessage()).orElse(""))
-                                                .filter(em -> BotUtils.isCommand(content, new String[]{"[a-zA-Z0-9]+"}, pref))
+                                                .filter(em -> BotUtils.isCommand(content, "[a-zA-Z0-9]+", pref))
                                                 .doOnNext(em -> {
                                                     DataManager.updateStats("received_unknown_command_count");
                                                     DataManager.updateGuildStats(e.getGuildId().get().asLong(), "received_unknown_command_count");
                                                 })
                                                 .doOnNext(em -> ScriptExecutor.onUnknownCommand(e))
-                                                .filter(em -> em.trim().length() > 0)
+                                                .filter(em -> em.strip().length() > 0)
                                                 .flatMap(em -> e.getMessage().getChannel()
                                                         .flatMap(c -> c.createMessage(mcs -> mcs.setContent(em)))
                                                         .map(x -> true)
@@ -339,20 +339,20 @@ public class BotEvents {
                 .filter(e -> e.getMessage().getContent().isPresent())
                 .filter(e -> e.getMessage().getAuthor().isPresent())
                 .filter(e -> e.getMessage().getAuthor().get().getId().asLong() != e.getClient().getSelfId().get().asLong())
-                .flatMap(e -> Flux.fromIterable(BotCommands.commands.entrySet())
-                        .filter(cmd -> cmd.getValue().isUsableInDM())
-                        .flatMap(cmd -> Mono.justOrEmpty(BotUtils.truncateMessage(e.getMessage().getContent().get(), cmd.getKey(), "="))
+                .flatMap(e -> Flux.fromIterable(Command.getCommands())
+                        .filter(Command::isUsableInDM)
+                        .flatMap(cmd -> Mono.justOrEmpty(cmd.truncateMessage("=", e.getMessage().getContent().orElse("")))
                                 .flatMap(truncated -> e.getMessage().getChannel()
                                         .flatMap(channel -> Mono.just("en")
                                         // TODO: add users to database, then use their selected language here
                                         //.flatMap(channel -> Mono.just(DataManager.getUser(e.getMessage().getAuthor().get().getId().asLong()).getLanguage())
                                                 .flatMap(lang -> Mono.just(BotUtils.messageToArgs(truncated))
-                                                        .filter(args -> !cmd.getValue().requiresBotOwner() || BotUtils.isBotAdmin(e.getMessage().getAuthor().map(User::getId).map(Snowflake::asLong).orElseThrow(), channel/*, lang*/))
-                                                        .filter(args -> !RatelimitUtils.isUserRatelimited(e.getGuildId().get().asLong(), cmd.getValue().getRatelimit(), channel, LocaleManager.getGuildLanguage(e.getGuildId().get().asLong())))
-                                                        .flatMap(args -> cmd.getValue().getExecutable().execute(e, "=", args, lang).doOnError(Throwable::printStackTrace).onErrorReturn(false).defaultIfEmpty(false)
+                                                        .filter(args -> !cmd.requiresBotOwner() || BotUtils.isBotAdmin(e.getMessage().getAuthor().map(User::getId).map(Snowflake::asLong).orElseThrow(), channel, lang))
+                                                        .filter(args -> !RatelimitUtils.isUserRatelimited(e.getGuildId().get().asLong(), cmd.getRatelimit(), channel, LocaleManager.getGuildLanguage(e.getGuildId().get().asLong())))
+                                                        .flatMap(args -> cmd.getExecutable().execute(e, "=", args, lang).doOnError(Throwable::printStackTrace).onErrorReturn(false).defaultIfEmpty(false)
                                                                 .filter(success -> !success)
                                                                 .flatMap(success -> {
-                                                                    BotUtils.sendHelpMessage(channel, cmd.getKey()[0], "=", lang);
+                                                                    BotUtils.sendHelpMessage(channel, cmd.getName(), "=", lang);
                                                                     return Mono.just(true);
                                                                 })
                                                                 .switchIfEmpty(Mono.just(true))
