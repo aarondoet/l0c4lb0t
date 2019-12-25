@@ -61,7 +61,7 @@ public class BotCommands {
                 .usableByEveryone(true)
                 .register();
         new Command("test2", (e, prefix, args, lang) -> e.getMessage().getChannel()
-                .filter(c -> !RatelimitUtils.isMemberRateLimited(e.getGuildId().map(Snowflake::asLong).orElseThrow(), e.getMessage().getAuthor().map(User::getId).map(Snowflake::asLong).orElseThrow(), RatelimitUtils.RatelimitChannel.TEST, 5, 10_000, c, lang))
+                //.filter(c -> !RatelimitUtils.isMemberRateLimited(e.getGuildId().map(Snowflake::asLong).orElseThrow(), e.getMessage().getAuthor().map(User::getId).map(Snowflake::asLong).orElseThrow(), RatelimitUtils.RatelimitChannel.TEST, 5, 10_000, c, lang))
                 .flatMap(c -> c.createMessage("Args: " + args.toString()))
                 .thenReturn(true)
                 )
@@ -88,7 +88,7 @@ public class BotCommands {
                 }))
                 .withAliases("pref")
                 .withPermissions("prefix", Permission.ADMINISTRATOR)
-                .usableInDM(true)
+                //.usableInDM(true)
                 .register();
         new Command("language", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .filter(c -> args.size() == 1 || args.size() == 2)
@@ -124,10 +124,9 @@ public class BotCommands {
                 .register();
         new Command("choose", (e, prefix, args, lang) -> e.getMessage().getChannel()
                 .filter(c -> args.size() > 1)
-                .map(c -> {
+                .flatMap(c -> {
                     Random rn = new Random();
-                    c.createEmbed(LocaleManager.getLanguageMessage(lang, "commands.choose.chosen", args.get(rn.nextInt(args.size())))).subscribe();
-                    return true;
+                    return c.createEmbed(LocaleManager.getLanguageMessage(lang, "commands.choose.chosen", args.get(rn.nextInt(args.size())))).map(x -> true);
                 }))
                 .withAliases("c")
                 .withPermissions("choose")
@@ -992,6 +991,24 @@ public class BotCommands {
                                 .flatMap(em -> m.addReaction(em))
                         ).subscribe();
                         return true;
+                    }else if(args.size() == 2 && (args.get(0).equalsIgnoreCase("upvote") || args.get(0).equalsIgnoreCase("downvote"))){
+                        try{
+                            boolean upvote = args.get(0).equalsIgnoreCase("upvote");
+                            int sId = Integer.parseInt(args.get(1));
+                            SQLBotSuggestion suggestion = DataManager.getBotSuggestion(sId);
+                            if(suggestion == null){
+                                c.createMessage("Could not find a suggestion with the id " + sId).subscribe();
+                                return true;
+                            }
+                            if(DataManager.setBotSuggestionVote(e.getMessage().getAuthor().get().getId().asLong(), suggestion.getId(), upvote)){
+                                c.createMessage("successfully voted for suggestion " + sId).subscribe();
+                            }else{
+                                BotUtils.sendErrorMessage(c);
+                            }
+                            return true;
+                        }catch (NumberFormatException ex){
+                            return false;
+                        }
                     }else if(args.size() == 2 && args.get(0).equalsIgnoreCase("get")){
                         try{
                             int sId = Integer.parseInt(args.get(1));
@@ -1008,7 +1025,7 @@ public class BotCommands {
                                     .addField("Status: " + suggestion.getStatus().getName(), suggestion.getDetailedStatus().orElse("No description set"), false)
                                     .addField("Last update", BotUtils.getDuration(e.getMessage().getTimestamp().minusMillis(suggestion.getLastUpdate().toEpochMilli()).getEpochSecond()) + " ago", false)
                                     .setColor(suggestion.getStatus().getColor())
-                                    .setFooter("Created at", null)
+                                    .setFooter(suggestion.getUpvotes() + " upvotes, " + suggestion.getDownvotes() + " downvotes — created at", null)
                                     .setTimestamp(suggestion.getCreatedAt())
                             ).subscribe();
                         }catch(NumberFormatException ex){
@@ -1135,6 +1152,24 @@ public class BotCommands {
                                 .flatMap(em -> m.addReaction(em))
                         ).subscribe();
                         return true;
+                    }else if(args.size() == 2 && (args.get(0).equalsIgnoreCase("upvote") || args.get(0).equalsIgnoreCase("downvote"))){
+                        try{
+                            boolean upvote = args.get(0).equalsIgnoreCase("upvote");
+                            int sId = Integer.parseInt(args.get(1));
+                            SQLFeedback suggestion = DataManager.getSuggestion(e.getGuildId().get().asLong(), sId);
+                            if(suggestion == null){
+                                c.createMessage("Could not find a suggestion with the id " + sId).subscribe();
+                                return true;
+                            }
+                            if(DataManager.setSuggestionVote(e.getGuildId().get().asLong(), e.getMessage().getAuthor().get().getId().asLong(), suggestion.getId(), upvote)){
+                                c.createMessage("successfully voted for suggestion " + sId).subscribe();
+                            }else{
+                                BotUtils.sendErrorMessage(c);
+                            }
+                            return true;
+                        }catch (NumberFormatException ex){
+                            return false;
+                        }
                     }else if(args.size() == 2 && args.get(0).equalsIgnoreCase("get")){
                         try{
                             int sId = Integer.parseInt(args.get(1));
@@ -1152,7 +1187,7 @@ public class BotCommands {
                                     .addField("Status: " + suggestion.getStatus().getName(), suggestion.getDetailedStatus().orElse("No description set"), false)
                                     .addField("Last update", BotUtils.getDuration(e.getMessage().getTimestamp().minusMillis(suggestion.getLastUpdate().toEpochMilli()).getEpochSecond()) + " ago", false)
                                     .setColor(suggestion.getStatus().getColor())
-                                    .setFooter("Created at", null)
+                                    .setFooter(suggestion.getUpvotes() + " upvotes, " + suggestion.getDownvotes() + " downvotes — created at", null)
                                     .setTimestamp(suggestion.getCreatedAt())
                             ).subscribe();
                         }catch(NumberFormatException ex){
@@ -1447,6 +1482,96 @@ public class BotCommands {
                 .withRatelimit(new RatelimitUtils.Ratelimit(2, 10_000))
                 .register();
 
+        new Command("clear", (e, prefix, args, lang) -> e.getMessage().getChannel().ofType(GuildMessageChannel.class)
+                .filter(c -> args.size() == 1 || args.size() == 2)
+                .flatMap(c -> {
+                    try{
+                        if(args.size() == 1){
+                            int amount = Integer.parseInt(args.get(0));
+                            if(amount < 2 || amount > 100)
+                                return c.createMessage("must be between 2 and 100").map(x -> true);
+                            else{
+                                Flux<Snowflake> messages = c.getMessagesBefore(e.getMessage().getId())
+                                        .take(amount)
+                                        .map(Message::getId);
+                                return c.bulkDelete(messages).count().flatMap(cnt -> messages.count()
+                                        .flatMap(cnt2 -> c.createMessage("deleted " + (cnt2 - cnt) + " of " + cnt2 + " messages"))
+                                ).map(x -> true);
+                            }
+                        }else{
+                            long from = Long.parseLong(args.get(0));
+                            long to = Long.parseLong(args.get(1));
+                            Snowflake start = Snowflake.of(BotUtils.isSnowflake(to) ? Math.min(from, to)-1 : from-1);
+                            Snowflake end = Snowflake.of(BotUtils.isSnowflake(from) ? Math.max(from,to)+1 : to+1);
+                            if(BotUtils.isSnowflake(from)){
+                                if(start.getTimestamp().isBefore(Instant.now().minus(14, ChronoUnit.DAYS)))
+                                    return c.createMessage("the start message is older than two weeks. please select a newer message.").map(x -> true);
+                                if(BotUtils.isSnowflake(to)){
+                                    Flux<Snowflake> messages = c.getMessagesAfter(start)
+                                            .takeWhile(message -> message.getId().asLong() < end.asLong())
+                                            .take(100)
+                                            .map(Message::getId);
+                                    return c.bulkDelete(messages).count().flatMap(cnt -> messages.count()
+                                            .flatMap(cnt2 -> c.createMessage("deleted " + (cnt2 - cnt) + " of " + cnt2 + " messages"))
+                                    ).map(x -> true);
+                                }else{
+                                    if(to < 2 || to > 100)
+                                        return c.createMessage("must be between 2 and 100").map(x -> true);
+                                    else{
+                                        Flux<Snowflake> messages = c.getMessagesAfter(start)
+                                                .take(to)
+                                                .map(Message::getId);
+                                        return c.bulkDelete(messages).count().flatMap(cnt -> messages.count()
+                                                .flatMap(cnt2 -> c.createMessage("deleted " + (cnt2 - cnt) + " of " + cnt2 + " messages"))
+                                        ).map(x -> true);
+                                    }
+                                }
+                            }else if(BotUtils.isSnowflake(to)){
+                                if(end.getTimestamp().isBefore(Instant.now().minus(14, ChronoUnit.DAYS)))
+                                    return c.createMessage("the start message is older than two weeks. please select a newer message.").map(x -> true);
+                                Flux<Snowflake> messages = c.getMessagesBefore(end)
+                                        .takeWhile(message -> message.getId().getTimestamp().isAfter(Instant.now().minus(14, ChronoUnit.DAYS)))
+                                        .take(from)
+                                        .map(Message::getId);
+                                return c.bulkDelete(messages).count().flatMap(cnt -> messages.count()
+                                        .flatMap(cnt2 -> c.createMessage("deleted " + (cnt2 - cnt) + " of " + cnt2 + " messages"))
+                                ).map(x -> true);
+                            }
+                            return Mono.just(false);
+                        }
+                    }catch(NumberFormatException ex){
+                        return Mono.just(false);
+                    }
+                }))
+                .register();
+
+        new Command("antiraid", (e, prefix, args, lang) -> e.getMessage().getChannel()
+                .filter(c -> args.size() == 1 || args.size() == 2)
+                .map(c -> {
+                    try{
+                        Snowflake start = Snowflake.of(args.get(0));
+                        long to = args.size() == 2 ? Long.parseLong(args.get(1)) : 5;
+                        Snowflake end = to < start.asLong() ? Snowflake.of(start.getTimestamp().plus(to, ChronoUnit.MINUTES)) : Snowflake.of(to);
+                        if(start.getTimestamp().isBefore(Instant.now().minus(5, ChronoUnit.DAYS))){
+                            c.createMessage("You are trying to delete a raid that is older than 5 days. To prevent accidents this is not possible.").subscribe();
+                            return true;
+                        }
+                        e.getGuild().flatMapMany(Guild::getMembers)
+                                // 3 minutes buffer
+                                .filter(m -> m.getJoinTime().isAfter(start.getTimestamp().minusSeconds(180)) && m.getJoinTime().isBefore(end.getTimestamp().plusSeconds(1)))
+                                .flatMap(m -> m.ban(bqs -> bqs
+                                        .setReason("Raid clear by " + e.getMember().map(Member::getId).map(Snowflake::asString).orElseThrow())
+                                        .setDeleteMessageDays(7)
+                                ).thenReturn(true))
+                                .count()
+                                .flatMap(cnt -> c.createMessage("Banned " + cnt + " users"))
+                                .subscribe();
+                        return true;
+                    }catch(NumberFormatException ex){
+                        return false;
+                    }
+                }))
+                .register();
     }
 
 }

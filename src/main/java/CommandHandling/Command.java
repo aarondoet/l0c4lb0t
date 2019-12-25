@@ -73,7 +73,11 @@ public class Command{
     }
 
     public void register(){
-        if(getCommand(getName()).isPresent() || Arrays.stream(getAliases()).anyMatch(alias -> getCommand(alias).isPresent()))
+        if(getName().replaceAll("[a-zA-Z0-9]", "").length() > 0 || Arrays.stream(getAliases()).anyMatch(alias -> alias.replaceAll("[a-zA-Z0-9]", "").length() > 0))
+            System.out.println("Command " + getName() + " does contain unallowed characters in it's name");
+        else if(getName().length() == 0 || Arrays.stream(getAliases()).anyMatch(alias -> alias.length() == 0))
+            System.out.println("Commands are not allowed to have an empty name or alias");
+        else if(getCommand(getName()).isPresent() || Arrays.stream(getAliases()).anyMatch(alias -> getCommand(alias).isPresent()))
             System.out.println("Command " + getName() + " is already registered");
         else
             commands.add(this);

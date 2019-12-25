@@ -31,11 +31,34 @@ public class RatelimitUtils{
         @Getter private int amount = 1000;
         @Getter private int timespan = 0;
         @Getter private RatelimitChannel channel;
+        @Getter private boolean perUser = false;
+        @Getter private boolean perChannel = false;
+        @Getter private boolean perGuild = false;
         public Ratelimit(int amount, int timespan){
             this.amount = amount;
             this.timespan = timespan;
             this.channel = RatelimitChannel.getNextChannel();
         }
+        public Ratelimit perUser(boolean perUser){this.perUser = perUser; return this;}
+        public Ratelimit perChannel(boolean perChannel){this.perChannel = perChannel; return this;}
+        public Ratelimit perGuild(boolean perGuild){this.perGuild = perGuild; return this;}
+        public Ratelimit perUser(){return perUser(true);}
+        public Ratelimit perChannel(){return perChannel(true);}
+        public Ratelimit perGuild(){return perGuild(true);}
+    }
+
+
+
+
+    public static boolean isRatelimited(Ratelimit ratelimit, long gId, long cId, long uId, MessageChannel channel, String lang){
+        if(ratelimit.isPerGuild() && ratelimit.isPerUser()) {
+            return isMemberRateLimited(gId, uId, ratelimit.getChannel(), ratelimit.getAmount(), ratelimit.getTimespan(), channel, lang);
+        }
+        if(ratelimit.isPerChannel() && ratelimit.isPerUser()){
+
+        }
+        
+        return false;
     }
 
 

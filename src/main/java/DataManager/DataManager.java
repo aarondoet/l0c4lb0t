@@ -10,6 +10,10 @@ import discord4j.core.object.reaction.ReactionEmoji;
 import discord4j.core.object.util.Image;
 import discord4j.core.object.util.PermissionSet;
 import discord4j.core.object.util.Snowflake;
+import io.r2dbc.spi.ConnectionFactories;
+import io.r2dbc.spi.ConnectionFactory;
+import io.r2dbc.spi.ConnectionFactoryOptions;
+import io.r2dbc.spi.Result;
 import lombok.Getter;
 import org.apache.commons.dbutils.DbUtils;
 import reactor.core.publisher.Mono;
@@ -61,8 +65,10 @@ public class DataManager {
         BOT_STATS("botstats"),
         BOT_SUGGESTIONS("botsuggestions"),
         BOT_SUGGESTION_NOTIFICATIONS("botsuggestionnotifications"),
+        BOT_SUGGESTION_VOTES("botsuggestionvotes"),
         SUGGESTIONS("suggestions"),
         SUGGESTION_NOTIFICATIONS("suggestionnotifications"),
+        SUGGESTION_VOTES("suggestionvotes"),
 
         BACKUP_GENERAL("backupgeneral"),
         BACKUP_ROLES("backuproles"),
@@ -273,6 +279,12 @@ public class DataManager {
                     "suggestion_id INT," +
                     "user_id BIGINT" +
                     ")";
+            String createBotSuggestionVoteTable = "CREATE TABLE IF NOT EXISTS " + Table.BOT_SUGGESTION_VOTES.getName() + " (" +
+                    "suggestion_id INT," +
+                    "user_id BIGINT," +
+                    "upvote BOOLEAN," +
+                    "PRIMARY KEY(suggestion_id, user_id)" +
+                    ")";
             String createSuggestionsTable = "CREATE TABLE IF NOT EXISTS " + Table.SUGGESTIONS.getName() + " (" +
                     "guild_id BIGINT," +
                     "id INT," +
@@ -290,6 +302,13 @@ public class DataManager {
                     "suggestion_id INT," +
                     "user_id BIGINT" +
                     ")";
+            String createSuggestionVoteTable = "CREATE TABLE IF NOT EXISTS " + Table.SUGGESTION_VOTES.getName() + " (" +
+                    "guild_id BIGINT," +
+                    "suggestion_id INT," +
+                    "user_id BIGINT," +
+                    "upvote BOOLEAN," +
+                    "PRIMARY KEY(guild_id, suggestion_id, user_id)" +
+                    ")";
             stmt = con.createStatement();
             stmt.execute(createGuildsTable);
             stmt.execute(createMembersTable);
@@ -302,8 +321,10 @@ public class DataManager {
             stmt.execute(createBlockedChannelsTable);
             stmt.execute(createBotSuggestionsTable);
             stmt.execute(createBotSuggestionNotificationsTable);
+            stmt.execute(createBotSuggestionVoteTable);
             stmt.execute(createSuggestionsTable);
             stmt.execute(createSuggestionNotificationTable);
+            stmt.execute(createSuggestionVoteTable);
             stmt.execute(createStatsTable);
             stmt.execute(createStatsTable2);
 
@@ -1485,6 +1506,57 @@ public class DataManager {
         return success;
     }
 
+    public static boolean setBotSuggestionVote(long uId, int sId, boolean upvote){
+        Connection con = null;
+        PreparedStatement stmt = null;
+        boolean success = false;
+        try{
+            con = getConnection();
+            stmt = con.prepareStatement("INSERT INTO " + Table.BOT_SUGGESTION_VOTES.getName() + " (suggestion_id, user_id, upvote) VALUES (?, ?, ?) " +
+                    "ON DUPLICATE KEY UPDATE upvote=?");
+            stmt.setInt(1, sId);
+            stmt.setLong(2, uId);
+            stmt.setBoolean(3, upvote);
+            stmt.setBoolean(4, upvote);
+            stmt.executeUpdate();
+            success = true;
+        }catch (SQLException ex){
+            ex.printStackTrace();
+        }finally {
+            DbUtils.closeQuietly(stmt);
+            DbUtils.closeQuietly(con);
+        }
+        return success;
+    }
+
+    /**
+     * Gets the amount of upvotes and downvotes for a specific suggestion id.
+     *
+     * @param sId The suggestion id
+     * @return an int[] of size 2 where result[0] is the upvote count and result[1] is the downvote count
+     */
+    public static int[] getBotSuggestionVoteCounts(int sId){
+        Connection con = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+        int[] result = new int[]{0, 0};
+        try{
+            con = getConnection();
+            stmt = con.prepareStatement("SELECT upvote, COUNT(*) AS cnt FROM " + Table.BOT_SUGGESTION_VOTES.getName() + " WHERE suggestion_id=? GROUP BY upvote");
+            stmt.setInt(1, sId);
+            rs = stmt.executeQuery();
+            while(rs.next())
+                result[rs.getBoolean("upvote") ? 0 : 1] = rs.getInt("cnt");
+        }catch(SQLException ex){
+            ex.printStackTrace();
+        }finally {
+            DbUtils.closeQuietly(rs);
+            DbUtils.closeQuietly(stmt);
+            DbUtils.closeQuietly(con);
+        }
+        return result;
+    }
+
     public static SQLFeedback addSuggestion(Long gId, Long uId, String title, String content, Instant createdAt, SQLFeedback.FeedbackType type){
         Connection con = null;
         PreparedStatement stmt = null;
@@ -1783,6 +1855,60 @@ public class DataManager {
             DbUtils.closeQuietly(con);
         }
         return success;
+    }
+
+    public static boolean setSuggestionVote(long gId, long uId, int sId, boolean upvote){
+        Connection con = null;
+        PreparedStatement stmt = null;
+        boolean success = false;
+        try{
+            con = getConnection();
+            stmt = con.prepareStatement("INSERT INTO " + Table.SUGGESTION_VOTES.getName() + " (guild_id, suggestion_id, user_id, upvote) VALUES (?, ?, ?, ?) " +
+                    "ON DUPLICATE KEY UPDATE upvote=?");
+            stmt.setLong(1, gId);
+            stmt.setInt(2, sId);
+            stmt.setLong(3, uId);
+            stmt.setBoolean(4, upvote);
+            stmt.setBoolean(5, upvote);
+            stmt.executeUpdate();
+            success = true;
+        }catch (SQLException ex){
+            ex.printStackTrace();
+        }finally {
+            DbUtils.closeQuietly(stmt);
+            DbUtils.closeQuietly(con);
+        }
+        return success;
+    }
+
+    /**
+     * Gets the amount of upvotes and downvotes for a specific suggestion id.
+     *
+     * @param gId The id of the guild
+     * @param sId The suggestion id
+     * @return an int[] of size 2 where result[0] is the upvote count and result[1] is the downvote count
+     */
+    public static int[] getSuggestionVoteCounts(long gId, int sId){
+        Connection con = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+        int[] result = new int[]{0, 0};
+        try{
+            con = getConnection();
+            stmt = con.prepareStatement("SELECT upvote, COUNT(*) AS cnt FROM " + Table.SUGGESTION_VOTES.getName() + " WHERE guild_id=? AND suggestion_id=? GROUP BY upvote");
+            stmt.setLong(1, gId);
+            stmt.setInt(2, sId);
+            rs = stmt.executeQuery();
+            while(rs.next())
+                result[rs.getBoolean("upvote") ? 0 : 1] = rs.getInt("cnt");
+        }catch(SQLException ex){
+            ex.printStackTrace();
+        }finally {
+            DbUtils.closeQuietly(rs);
+            DbUtils.closeQuietly(stmt);
+            DbUtils.closeQuietly(con);
+        }
+        return result;
     }
 
     public static boolean guildBackupExists(Long gId, String bId){

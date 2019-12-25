@@ -593,6 +593,17 @@ public class BotUtils {
     }
 
     /**
+     * Checks if the provided long is a valid {@link Snowflake}<br/>
+     * 2015-05-15, the first day Discord was available, is converted to a {@link Snowflake} and it is checked if the provided {@link Long} is not less than that Snowflake.
+     *
+     * @param possiblySnowflake The {@link Long}
+     * @return
+     */
+    public static boolean isSnowflake(long possiblySnowflake){
+        return possiblySnowflake >= Snowflake.of(Instant.ofEpochMilli(1431648000000L)).asLong();
+    }
+
+    /**
      * Clamps a value
      *
      * @param value The value you want to clamp
@@ -618,7 +629,7 @@ public class BotUtils {
      * @param b The second list
      * @return The added lists
      */
-    public static <T extends Object> List<T> addLists(List<T> a, List<T> b){
+    public static <T> List<T> addLists(List<T> a, List<T> b){
         List<T> newList = new ArrayList<>();
         newList.addAll(a);
         newList.addAll(b);

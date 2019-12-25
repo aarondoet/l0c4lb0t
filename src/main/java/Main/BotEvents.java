@@ -88,7 +88,7 @@ public class BotEvents {
                                                 .flatMap(truncated -> e.getMessage().getChannel().ofType(GuildMessageChannel.class)
                                                         .flatMap(channel -> Mono.just(LocaleManager.getGuildLanguage(e.getGuildId().get().asLong()))
                                                                 .filter(lang -> !cmd.requiresBotOwner() || BotUtils.isBotAdmin(e.getMessage().getAuthor().map(User::getId).map(Snowflake::asLong).orElseThrow(), channel, lang))
-                                                                .filter(lang -> !RatelimitUtils.isGuildRatelimited(e.getGuildId().get().asLong(), cmd.getRatelimit(), channel, LocaleManager.getGuildLanguage(e.getGuildId().get().asLong())))
+                                                                .filter(lang -> !RatelimitUtils.isRatelimited(cmd.getRatelimit(), e.getGuildId().get().asLong(), e.getMessage().getChannelId().asLong(), e.getMessage().getAuthor().map(User::getId).map(Snowflake::asLong).orElseThrow(), channel, lang))
                                                                 .filter(lang -> !cmd.isNsfwOnly() || BotUtils.checkChannelForNSFW(channel))
                                                                 .flatMap(lang -> Mono.justOrEmpty(BotUtils.messageToArgs(truncated))
                                                                         .flatMap(args -> e.getGuild()

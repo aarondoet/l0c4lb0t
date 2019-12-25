@@ -59,6 +59,8 @@ public class SQLFeedback{
     @Getter private Instant createdAt = Instant.MIN;
     @Getter private Instant lastUpdate = Instant.MIN;
     @Getter private FeedbackType type;
+    @Getter private int upvotes = 0;
+    @Getter private int downvotes = 0;
 
     public SQLFeedback(long guildId, String title, String content, byte status, String detailedStatus, int id, long creatorId, Instant createdAt, Instant lastUpdate, FeedbackType type) {
         this.guildId = guildId;
@@ -71,6 +73,9 @@ public class SQLFeedback{
         this.createdAt = createdAt;
         this.lastUpdate = lastUpdate;
         this.type = type;
+        int[] votes = DataManager.getSuggestionVoteCounts(guildId, id);
+        this.upvotes = votes[0];
+        this.downvotes = votes[1];
     }
 
     public Optional<String> getDetailedStatus() {return Optional.ofNullable(detailedStatus);}
